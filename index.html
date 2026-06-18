@@ -9,7 +9,7 @@
   
   <style>
     body { font-family: -apple-system, sans-serif; background: #f9f9f9; padding-bottom: 50px; }
-    .card-img-top { height: 120px; object-fit: contain; background-color: #f1f1f1; padding: 0; margin: 0; } /* 0 padding & 0 margin for max view */
+    .card-img-top { height: 120px; object-fit: contain; background-color: #f1f1f1; padding: 0; margin: 0; }
     .status-badge { font-size: 0.8rem; }
     .img-meta { font-size: 0.75rem; color: #666; }
     .btn-reset-nav { padding: 0.25rem 0.5rem; font-size: 0.75rem; line-height: 1; }
@@ -65,19 +65,19 @@
       <div class="col-md-2">
         <label for="formatSelect" class="form-label fw-bold">Convert To</label>
         <select class="form-select" id="formatSelect">
-          <option value="image/avif">AVIF (Next-Gen)</option>
           <option value="image/webp">WebP (Optimized)</option>
+          <option value="image/avif">AVIF (Next-Gen)</option>
           <option value="image/png">PNG (Lossless)</option>
           <option value="image/jpeg">JPEG (Standard)</option>
         </select>
       </div>
 
       <div class="col-md-2">
-        <label interpreter="text" for="qualitySelect" class="form-label fw-bold">Visual Quality</label>
+        <label for="qualitySelect" class="form-label fw-bold">Visual Quality</label>
         <select class="form-select" id="qualitySelect">
+          <option value="medium">Medium (60%)</option>
           <option value="max">Maximum (95%)</option>
           <option value="high">High (80%)</option>
-          <option value="medium">Medium (60%)</option>
           <option value="low">Low (40%)</option>
           <option value="min">Minimum (20%)</option>
         </select>
@@ -86,8 +86,8 @@
       <div class="col-md-2">
         <label for="speedSelect" class="form-label fw-bold">Processing Speed</label>
         <select class="form-select" id="speedSelect">
-          <option value="0">0 - Instant</option>
           <option value="1">1 - Very Fast</option>
+          <option value="0">0 - Instant</option>
           <option value="2">2 - Balanced</option>
           <option value="3">3 - Slow</option>
           <option value="4">4 - Max Compression</option>
@@ -97,9 +97,11 @@
       <div class="col-md-1">
         <label for="threadsSelect" class="form-label fw-bold">Threads</label>
         <select class="form-select" id="threadsSelect">
+          <option value="4">4</option>
           <option value="1">1</option>
           <option value="2">2</option>
-          <option value="4">4</option>
+          <option value="6">6</option>
+          <option value="8">8</option>
         </select>
       </div>
       
@@ -118,10 +120,57 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-<script type="module">
+<script id="worker-script" type="text/plain">
   import * as avifCodec from "https://unpkg.com/@jsquash/avif@1.0.2/index.js?module";
   import * as webpCodec from "https://unpkg.com/@jsquash/webp@1.2.0/index.js?module";
 
+  self.onmessage = async (e) => {
+    const { arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel } = e.data;
+    
+    try {
+      let imageData;
+      if (fileType === 'image/avif' || fileName.endsWith('.avif')) {
+        imageData = await avifCodec.decode(arrayBuffer);
+      } else if (fileType === 'image/webp' || fileName.endsWith('.webp')) {
+        imageData = await webpCodec.decode(arrayBuffer);
+      } else {
+        self.postMessage({ type: 'NEED_CANVAS_DECODE', index });
+        return;
+      }
+
+      await executeEncode(imageData, targetMime, qLevel, rawQuality, targetEffort, index);
+    } catch (err) {
+      self.postMessage({ type: 'ERROR', index, error: err.message });
+    }
+  };
+
+  async function executeEncode(imageData, targetMime, qLevel, rawQuality, targetEffort, index) {
+    try {
+      let outputBuffer;
+      if (targetMime === 'image/avif') {
+        const avifQuality = qLevel === 'max' ? 82 : Math.round(rawQuality * 0.85);
+        outputBuffer = await avifCodec.encode(imageData, { quality: avifQuality, effort: targetEffort });
+      } else if (targetMime === 'image/webp') {
+        outputBuffer = await webpCodec.encode(imageData, { quality: rawQuality, effort: targetEffort });
+      } else {
+        self.postMessage({ type: 'NEED_CANVAS_ENCODE', index, imageData });
+        return;
+      }
+
+      self.postMessage({ 
+        type: 'SUCCESS', 
+        index, 
+        outputBuffer, 
+        width: imageData.width, 
+        height: imageData.height 
+      }, [outputBuffer]);
+    } catch(err) {
+      self.postMessage({ type: 'ERROR', index, error: err.message });
+    }
+  }
+</script>
+
+<script type="module">
   const imageInput = document.getElementById('imageInput');
   const formatSelect = document.getElementById('formatSelect');
   const qualitySelect = document.getElementById('qualitySelect');
@@ -135,10 +184,14 @@
 
   let selectedFiles = [];
   let convertedFiles = [];
-
   const qualityValues = { max: 95, high: 80, medium: 60, low: 40, min: 20 };
+  
+  // Defaults updated here (webp, medium quality, speed 1, 4 threads)
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4' };
 
-  const DEFAULT_CONFIG = { format: 'image/avif', quality: 'high', speed: '2', threads: '2' };
+  const workerCode = document.getElementById('worker-script').textContent;
+  const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+  const workerUrl = URL.createObjectURL(workerBlob);
 
   function loadSavedConfig() {
     formatSelect.value = localStorage.getItem('img_format') || DEFAULT_CONFIG.format;
@@ -155,19 +208,14 @@
   }
 
   loadSavedConfig();
-
   formatSelect.addEventListener('change', saveConfig);
   qualitySelect.addEventListener('change', saveConfig);
   speedSelect.addEventListener('change', saveConfig);
   threadsSelect.addEventListener('change', saveConfig);
 
   resetConfigBtn.addEventListener('click', () => {
-    localStorage.removeItem('img_format');
-    localStorage.removeItem('img_quality');
-    localStorage.removeItem('img_speed');
-    localStorage.removeItem('img_threads');
+    localStorage.clear();
     loadSavedConfig();
-    
     const originalText = resetConfigBtn.innerHTML;
     resetConfigBtn.innerHTML = "Reset Done!";
     resetConfigBtn.classList.replace('btn-danger', 'btn-secondary');
@@ -184,10 +232,7 @@
     convertedFiles = [];
     statusElement.innerText = selectedFiles.length > 0 ? `${selectedFiles.length} files selected.` : "";
     matrixContainer.innerHTML = '';
-    
-    selectedFiles.forEach((file, index) => {
-      createImageCard(file, index);
-    });
+    selectedFiles.forEach((file, index) => createImageCard(file, index));
   });
 
   convertBtn.addEventListener('click', async () => {
@@ -198,7 +243,7 @@
     const qLevel = qualitySelect.value;
     const rawQuality = qualityValues[qLevel];
     const targetEffort = parseInt(speedSelect.value, 10);
-    const maxConcurrency = parseInt(threadsSelect.value, 10);
+    const maxThreads = parseInt(threadsSelect.value, 10);
     
     convertBtn.disabled = true;
     imageInput.disabled = true;
@@ -211,93 +256,93 @@
     
     let processedCount = 0;
     const globalStartTime = performance.now();
+    const queue = [...selectedFiles.map((file, index) => ({ file, index }))];
+    const activeWorkers = [];
 
-    async function processImage(file, i) {
-      updateCardStatus(i, 'processing');
-      const imageStartTime = performance.now();
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        let imageData;
-
-        if (file.type === 'image/avif' || file.name.endsWith('.avif')) {
-          imageData = await avifCodec.decode(arrayBuffer);
-        } else if (file.type === 'image/webp' || file.name.endsWith('.webp')) {
-          imageData = await webpCodec.decode(arrayBuffer);
-        } else {
-          imageData = await decodeWithCanvas(file);
+    await new Promise((resolve) => {
+      function launchNext() {
+        if (queue.length === 0 && activeWorkers.length === 0) {
+          resolve();
+          return;
         }
 
-        document.getElementById(`res-${i}`).innerText = `${imageData.width}x${imageData.height} px`;
+        while (activeWorkers.length < maxThreads && queue.length > 0) {
+          const { file, index } = queue.shift();
+          updateCardStatus(index, 'processing');
+          const imageStartTime = performance.now();
 
-        let outputBuffer;
-        if (targetMime === 'image/avif') {
-          const avifQuality = qLevel === 'max' ? 82 : Math.round(rawQuality * 0.85);
-          outputBuffer = await avifCodec.encode(imageData, { quality: avifQuality, effort: targetEffort });
-        } else if (targetMime === 'image/webp') {
-          outputBuffer = await webpCodec.encode(imageData, { quality: rawQuality, effort: targetEffort });
-        } else {
-          outputBuffer = await encodeWithCanvas(imageData, targetMime, rawQuality / 100);
+          const worker = new Worker(workerUrl, { type: 'module' });
+          activeWorkers.push(worker);
+
+          worker.onmessage = async (e) => {
+            const msg = e.data;
+
+            if (msg.type === 'NEED_CANVAS_DECODE') {
+              try {
+                const imgData = await decodeWithCanvas(file);
+                document.getElementById(`res-${index}`).innerText = `${imgData.width}x${imgData.height} px`;
+                
+                if (targetMime === 'image/png' || targetMime === 'image/jpeg') {
+                  const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
+                  finalizeFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime);
+                  cleanupWorker(worker);
+                } else {
+                  worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData });
+                }
+              } catch(err) {
+                handleFailure(index, worker);
+              }
+            } 
+            else if (msg.type === 'NEED_CANVAS_ENCODE') {
+              const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
+              finalizeFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime);
+              cleanupWorker(worker);
+            } 
+            else if (msg.type === 'SUCCESS') {
+              finalizeFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime);
+              cleanupWorker(worker);
+            } 
+            else if (msg.type === 'ERROR') {
+              handleFailure(index, worker);
+            }
+          };
+
+          file.arrayBuffer().then(buf => {
+            worker.postMessage({
+              arrayBuffer: buf,
+              fileType: file.type,
+              fileName: file.name,
+              targetMime,
+              rawQuality,
+              targetEffort,
+              index,
+              qLevel
+            }, [buf]);
+          }).catch(() => handleFailure(index, worker));
         }
+      }
 
-        const blob = new Blob([outputBuffer], { type: targetMime });
-        const url = URL.createObjectURL(blob);
-        const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
-        const finalFileName = `${originalName}.${targetExt}`;
-        
-        convertedFiles.push({ name: finalFileName, blob: blob });
-        
-        const imageEndTime = performance.now();
-        const durationSec = ((imageEndTime - imageStartTime) / 1000).toFixed(2);
-        document.getElementById(`time-${i}`).innerText = `${durationSec}s`;
-
-        const initialSize = file.size;
-        const finalSize = blob.size;
-        const percentage = Math.round((finalSize / initialSize) * 100);
-        const difference = percentage - 100;
-        
-        let weightText = `${percentage}% of original`;
-        let badgeColor = "bg-success";
-        
-        if (difference < 0) {
-          weightText += ` (${difference}%)`;
-        } else if (difference > 0) {
-          weightText += ` (+${difference}%)`;
-          badgeColor = "bg-danger";
-        }
-
-        updateCardStatus(i, 'complete', url, finalFileName, weightText, badgeColor);
+      function cleanupWorker(worker) {
+        worker.terminate();
+        const idx = activeWorkers.indexOf(worker);
+        if (idx > -1) activeWorkers.splice(idx, 1);
         processedCount++;
         statusElement.innerText = `Processed ${processedCount} of ${selectedFiles.length} images...`;
-
-      } catch (error) {
-        console.error(`Error in ${file.name}:`, error);
-        updateCardStatus(i, 'error');
+        launchNext();
       }
-    }
 
-    const queue = [...selectedFiles.map((file, index) => ({ file, index }))];
-    const workers = [];
-
-    async function workerPool() {
-      while (queue.length > 0) {
-        const item = queue.shift();
-        if (item) {
-          await processImage(item.file, item.index);
-        }
+      function handleFailure(index, worker) {
+        updateCardStatus(index, 'error');
+        cleanupWorker(worker);
       }
-    }
 
-    for (let w = 0; w < Math.min(maxConcurrency, queue.length); w++) {
-      workers.push(workerPool());
-    }
-
-    await Promise.all(workers);
+      launchNext();
+    });
 
     const globalEndTime = performance.now();
     const totalDuration = ((globalEndTime - globalStartTime) / 1000).toFixed(2);
 
-    statusElement.innerHTML = `<strong class="text-success">Conversion finished!</strong> Processed all images in <span class="badge bg-dark">${totalDuration} seconds</span> using ${maxConcurrency} concurrent threads.`;
+    statusElement.innerHTML = `<strong class="text-success">Conversion finished!</strong> Processed all images in <span class="badge bg-dark">${totalDuration} seconds</span> using ${maxThreads} real CPU worker threads.`;
     
     convertBtn.disabled = false;
     imageInput.disabled = false;
@@ -306,36 +351,52 @@
     speedSelect.disabled = false;
     threadsSelect.disabled = false;
 
-    if (convertedFiles.length > 0) {
-      downloadZipBtn.classList.remove('d-none');
-    }
+    if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
   });
+
+  function finalizeFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime) {
+    document.getElementById(`res-${index}`).innerText = `${width}x${height} px`;
+    const blob = new Blob([buffer], { type: targetMime });
+    const url = URL.createObjectURL(blob);
+    const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
+    const finalFileName = `${originalName}.${targetExt}`;
+    
+    convertedFiles.push({ name: finalFileName, blob });
+    
+    const durationSec = ((performance.now() - imageStartTime) / 1000).toFixed(2);
+    document.getElementById(`time-${index}`).innerText = `${durationSec}s`;
+
+    const percentage = Math.round((blob.size / file.size) * 100);
+    const difference = percentage - 100;
+    let weightText = `${percentage}% of original`;
+    let badgeColor = "bg-success";
+    
+    if (difference < 0) weightText += ` (${difference}%)`;
+    else if (difference > 0) { weightText += ` (+${difference}%)`; badgeColor = "bg-danger"; }
+
+    updateCardStatus(index, 'complete', url, finalFileName, weightText, badgeColor);
+  }
 
   downloadZipBtn.addEventListener('click', async () => {
     if (convertedFiles.length === 0) return;
-    
     downloadZipBtn.disabled = true;
     downloadZipBtn.innerText = "...";
     
     const zip = new JSZip();
-    convertedFiles.forEach(file => {
-      zip.file(file.name, file.blob);
-    });
+    convertedFiles.forEach(file => zip.file(file.name, file.blob));
     
     try {
       const zipContent = await zip.generateAsync({ type: "blob" });
       const zipUrl = URL.createObjectURL(zipContent);
-      
       const link = document.createElement('a');
       link.href = zipUrl;
       link.download = "converted_images.zip";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       URL.revokeObjectURL(zipUrl);
     } catch (err) {
-      console.error("Error generating ZIP:", err);
+      console.error(err);
     } finally {
       downloadZipBtn.disabled = false;
       downloadZipBtn.innerText = "ZIP";
@@ -346,7 +407,6 @@
     const col = document.createElement('div');
     col.className = 'col';
     col.id = `card-col-${index}`;
-
     const previewUrl = URL.createObjectURL(file);
     const origExt = file.name.split('.').pop().toUpperCase();
 
@@ -355,13 +415,11 @@
         <img src="${previewUrl}" class="card-img-top" alt="Preview">
         <div class="card-body p-2 d-flex flex-column">
           <p class="card-title text-truncate mb-1 font-weight-bold" style="font-size: 0.85rem;" title="${file.name}">${file.name}</p>
-          
           <div class="img-meta mb-2">
             <div><strong>Format:</strong> <span class="badge bg-light text-dark border">${origExt}</span></div>
             <div><strong>Dim:</strong> <span id="res-${index}">Calculating...</span></div>
             <div><strong>Time:</strong> <span id="time-${index}" class="text-primary fw-bold">...</span></div>
           </div>
-
           <div class="mt-auto text-center mb-1" id="status-container-${index}">
             <span class="badge bg-secondary status-badge">Waiting</span>
           </div>
@@ -387,11 +445,8 @@
     if (state === 'processing') {
       statusContainer.classList.remove('d-none');
       statusContainer.innerHTML = `
-        <div class="spinner-border spinner-border-sm text-primary" role="status">
-          <span class="visually-hidden">Processing...</span>
-        </div>
-        <span class="text-primary status-badge ms-1">Processing...</span>
-      `;
+        <div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">...</span></div>
+        <span class="text-primary status-badge ms-1">Processing...</span>`;
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
       weightContainer.innerHTML = `<span class="badge ${badgeColor}" style="font-size: 0.7rem;">${weightText}</span>`;
@@ -428,10 +483,7 @@
       canvas.height = imageData.height;
       const ctx = canvas.getContext('2d');
       ctx.putImageData(imageData, 0, 0);
-      
-      canvas.toBlob((blob) => {
-        blob.arrayBuffer().then(resolve);
-      }, mimeType, quality);
+      canvas.toBlob((blob) => blob.arrayBuffer().then(resolve), mimeType, quality);
     });
   }
 </script>
