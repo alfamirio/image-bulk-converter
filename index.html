@@ -9,10 +9,13 @@
   
   <style>
     body { font-family: -apple-system, sans-serif; background: #f9f9f9; padding-bottom: 50px; }
-    .card-img-top { height: 120px; object-fit: contain; background-color: #f1f1f1; padding: 0; margin: 0; }
+    .card-img-top { height: 120px; object-fit: contain; background-color: #f1f1f1; padding: 0; margin: 0; transition: transform 0.2s ease; }
     .status-badge { font-size: 0.8rem; }
     .img-meta { font-size: 0.75rem; color: #666; }
     .btn-reset-nav { padding: 0.25rem 0.5rem; font-size: 0.75rem; line-height: 1; }
+    .img-container { position: relative; overflow: hidden; background-color: #f1f1f1; height: 120px; display: flex; align-items: center; justify-content: center; }
+    .rotate-btn { position: absolute; top: 5px; right: 5px; z-index: 10; opacity: 0.8; padding: 2px 6px; }
+    .rotate-btn:hover { opacity: 1; }
   </style>
 </head>
 <body>
@@ -114,8 +117,7 @@
     <div id="status" class="mt-3 text-center h6 fw-normal text-secondary"></div>
   </div>
 
-  <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3" id="matrixContainer">
-    </div>
+  <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3" id="matrixContainer"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -125,21 +127,34 @@
   import * as webpCodec from "https://unpkg.com/@jsquash/webp@1.2.0/index.js?module";
 
   self.onmessage = async (e) => {
-    const { arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel } = e.data;
+    const { type, arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel, rotation, imageData } = e.data;
     
     try {
-      let imageData;
+      // Handle data coming back from main thread canvas conversion
+      if (type === 'CONTINUE_ENCODE') {
+        await executeEncode(imageData, targetMime, qLevel, rawQuality, targetEffort, index);
+        return;
+      }
+
+      // Intercept rotated file pipelines immediately
+      if (rotation > 0) {
+        self.postMessage({ type: 'NEED_CANVAS_DECODE', index });
+        return;
+      }
+
+      let decodedData;
       if (fileType === 'image/avif' || fileName.endsWith('.avif')) {
-        imageData = await avifCodec.decode(arrayBuffer);
+        decodedData = await avifCodec.decode(arrayBuffer);
       } else if (fileType === 'image/webp' || fileName.endsWith('.webp')) {
-        imageData = await webpCodec.decode(arrayBuffer);
+        decodedData = await webpCodec.decode(arrayBuffer);
       } else {
         self.postMessage({ type: 'NEED_CANVAS_DECODE', index });
         return;
       }
 
-      await executeEncode(imageData, targetMime, qLevel, rawQuality, targetEffort, index);
+      await executeEncode(decodedData, targetMime, qLevel, rawQuality, targetEffort, index);
     } catch (err) {
+      console.error(`[Worker Image ${index}] Error during decoding stage:`, err);
       self.postMessage({ type: 'ERROR', index, error: err.message });
     }
   };
@@ -165,6 +180,7 @@
         height: imageData.height 
       }, [outputBuffer]);
     } catch(err) {
+      console.error(`[Worker Image ${index}] Error during WASM encoding stage:`, err);
       self.postMessage({ type: 'ERROR', index, error: err.message });
     }
   }
@@ -184,9 +200,8 @@
 
   let selectedFiles = [];
   let convertedFiles = [];
+  let fileRotations = {};
   const qualityValues = { max: 95, high: 80, medium: 60, low: 40, min: 20 };
-  
-  // Defaults updated here (webp, medium quality, speed 1, 4 threads)
   const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4' };
 
   const workerCode = document.getElementById('worker-script').textContent;
@@ -230,9 +245,13 @@
     convertBtn.disabled = selectedFiles.length === 0;
     downloadZipBtn.classList.add('d-none');
     convertedFiles = [];
+    fileRotations = {};
     statusElement.innerText = selectedFiles.length > 0 ? `${selectedFiles.length} files selected.` : "";
     matrixContainer.innerHTML = '';
-    selectedFiles.forEach((file, index) => createImageCard(file, index));
+    selectedFiles.forEach((file, index) => {
+      fileRotations[index] = 0;
+      createImageCard(file, index);
+    });
   });
 
   convertBtn.addEventListener('click', async () => {
@@ -251,6 +270,7 @@
     qualitySelect.disabled = true;
     speedSelect.disabled = true;
     threadsSelect.disabled = true;
+    document.querySelectorAll('.rotate-btn').forEach(btn => btn.disabled = true);
     downloadZipBtn.classList.add('d-none');
     convertedFiles = [];
     
@@ -270,6 +290,7 @@
           const { file, index } = queue.shift();
           updateCardStatus(index, 'processing');
           const imageStartTime = performance.now();
+          const rotation = fileRotations[index] || 0;
 
           const worker = new Worker(workerUrl, { type: 'module' });
           activeWorkers.push(worker);
@@ -279,7 +300,7 @@
 
             if (msg.type === 'NEED_CANVAS_DECODE') {
               try {
-                const imgData = await decodeWithCanvas(file);
+                const imgData = await decodeWithCanvas(file, rotation);
                 document.getElementById(`res-${index}`).innerText = `${imgData.width}x${imgData.height} px`;
                 
                 if (targetMime === 'image/png' || targetMime === 'image/jpeg') {
@@ -287,22 +308,37 @@
                   finalizeFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime);
                   cleanupWorker(worker);
                 } else {
-                  worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData });
+                  worker.postMessage({ 
+                    type: 'CONTINUE_ENCODE', 
+                    imageData: imgData, 
+                    targetMime, 
+                    qLevel, 
+                    rawQuality, 
+                    targetEffort, 
+                    index 
+                  });
                 }
               } catch(err) {
+                console.error(`[Main Thread Image ${index}] Canvas rotation preprocessing crashed:`, err);
                 handleFailure(index, worker);
               }
             } 
             else if (msg.type === 'NEED_CANVAS_ENCODE') {
-              const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
-              finalizeFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime);
-              cleanupWorker(worker);
+              try {
+                const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
+                finalizeFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime);
+                cleanupWorker(worker);
+              } catch (err) {
+                console.error(`[Main Thread Image ${index}] Fallback Canvas encoding failed:`, err);
+                handleFailure(index, worker);
+              }
             } 
             else if (msg.type === 'SUCCESS') {
               finalizeFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime);
               cleanupWorker(worker);
             } 
             else if (msg.type === 'ERROR') {
+              console.error(`[Main Thread Image ${index}] Worker caught internal failure code.`);
               handleFailure(index, worker);
             }
           };
@@ -316,9 +352,13 @@
               rawQuality,
               targetEffort,
               index,
-              qLevel
+              qLevel,
+              rotation
             }, [buf]);
-          }).catch(() => handleFailure(index, worker));
+          }).catch((err) => {
+            console.error(`[Main Thread Image ${index}] Could not generate file arrayBuffer array:`, err);
+            handleFailure(index, worker);
+          });
         }
       }
 
@@ -342,7 +382,7 @@
     const globalEndTime = performance.now();
     const totalDuration = ((globalEndTime - globalStartTime) / 1000).toFixed(2);
 
-    statusElement.innerHTML = `<strong class="text-success">Conversion finished!</strong> Processed all images in <span class="badge bg-dark">${totalDuration} seconds</span> using ${maxThreads} real CPU worker threads.`;
+    statusElement.innerHTML = `<strong class="text-success">Conversion finished!</strong> Processed all images in <span class="badge bg-dark">${totalDuration} seconds</span> using ${threadsSelect.value} threads.`;
     
     convertBtn.disabled = false;
     imageInput.disabled = false;
@@ -350,6 +390,7 @@
     qualitySelect.disabled = false;
     speedSelect.disabled = false;
     threadsSelect.disabled = false;
+    document.querySelectorAll('.rotate-btn').forEach(btn => btn.disabled = false);
 
     if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
   });
@@ -412,7 +453,15 @@
 
     col.innerHTML = `
       <div class="card h-100 shadow-sm">
-        <img src="${previewUrl}" class="card-img-top" alt="Preview">
+        <div class="img-container">
+          <button class="btn btn-light btn-sm shadow-sm rotate-btn" id="rotate-btn-${index}" title="Rotate image 90° clockwise">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+              <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>
+              <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+            </svg>
+          </button>
+          <img src="${previewUrl}" class="card-img-top" id="preview-img-${index}" alt="Preview">
+        </div>
         <div class="card-body p-2 d-flex flex-column">
           <p class="card-title text-truncate mb-1 font-weight-bold" style="font-size: 0.85rem;" title="${file.name}">${file.name}</p>
           <div class="img-meta mb-2">
@@ -430,11 +479,17 @@
     `;
     matrixContainer.appendChild(col);
     
-    const imgEl = col.querySelector('img');
+    const imgEl = col.querySelector(`#preview-img-${index}`);
+    const rotBtn = col.querySelector(`#rotate-btn-${index}`);
+
     imgEl.onload = () => {
       document.getElementById(`res-${index}`).innerText = `${imgEl.naturalWidth}x${imgEl.naturalHeight} px`;
-      URL.revokeObjectURL(previewUrl);
     };
+
+    rotBtn.addEventListener('click', () => {
+      fileRotations[index] = (fileRotations[index] + 90) % 360;
+      imgEl.style.transform = `rotate(${fileRotations[index]}deg)`;
+    });
   }
 
   function updateCardStatus(index, state, downloadUrl = null, fileName = null, weightText = "", badgeColor = "bg-success") {
@@ -459,31 +514,46 @@
     }
   }
 
-  function decodeWithCanvas(file) {
+  function decodeWithCanvas(file, rotation = 0) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.src = URL.createObjectURL(file);
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        const isSidelong = rotation === 90 || rotation === 270;
+        
+        canvas.width = isSidelong ? img.naturalHeight : img.naturalWidth;
+        canvas.height = isSidelong ? img.naturalWidth : img.naturalHeight;
+        
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+        
         resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
         URL.revokeObjectURL(img.src);
       };
-      img.onerror = reject;
+      img.onerror = (err) => {
+        console.error("Canvas Image object decoder failed to parse file descriptor reference.", err);
+        reject(err);
+      };
     });
   }
 
   function encodeWithCanvas(imageData, mimeType, quality) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
       canvas.width = imageData.width;
       canvas.height = imageData.height;
       const ctx = canvas.getContext('2d');
       ctx.putImageData(imageData, 0, 0);
-      canvas.toBlob((blob) => blob.arrayBuffer().then(resolve), mimeType, quality);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Canvas export returned empty blob stream structure data."));
+          return;
+        }
+        blob.arrayBuffer().then(resolve);
+      }, mimeType, quality);
     });
   }
 </script>
