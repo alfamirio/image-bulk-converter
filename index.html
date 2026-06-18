@@ -95,15 +95,19 @@
         </select>
       </div>
 
-      <div class="col-md-2">
+      <div class="col-md-2" style="position:relative;">
         <label for="speedSelect" class="form-label form-label-sm fw-bold">Processing Speed</label>
         <select class="form-select form-select-sm" id="speedSelect">
           <option value="0">0 - Instant</option>
           <option value="1" selected>1 - Very Fast</option>
           <option value="2">2 - Balanced</option>
-          <option value="3">3 - Slow</option>
-          <option value="4">4 - Max Compression</option>
+          <option value="3">⚠ 3 - Slow</option>
+          <option value="4">⚠ 4 - Max Compression</option>
         </select>
+        <div id="speedWarning" class="d-none" style="position:absolute; top:100%; left:0; margin-top:2px; font-size:0.7rem; color:#b45309; display:flex; align-items:flex-start; gap:3px; white-space:nowrap; z-index:5;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" viewBox="0 0 16 16" style="flex-shrink:0; margin-top:1px;"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
+          <span>AVIF encoding at this speed can be very slow</span>
+        </div>
       </div>
 
       <div class="col-md-1">
@@ -189,7 +193,12 @@
         return;
       }
 
-      if (rotation > 0 || resizeMode !== 'none') {
+      // Always use canvas decode when rotation or resize is needed,
+      // or when the source is a native browser format (JPEG/PNG).
+      const needsTransform = (rotation > 0 || resizeMode !== 'none');
+      const isNativeSource = fileType === 'image/jpeg' || fileType === 'image/png' || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png');
+
+      if (needsTransform || isNativeSource) {
         self.postMessage({ type: 'NEED_CANVAS_DECODE', index });
         return;
       }
@@ -215,10 +224,23 @@
     try {
       let outputBuffer;
       if (targetMime === 'image/avif') {
-        const avifQuality = qLevel === 'max' ? 82 : Math.round(rawQuality * 0.85);
-        outputBuffer = await avifCodec.encode(imageData, { quality: avifQuality, effort: targetEffort });
+        // cqLevel: 0 = best, 63 = worst. 5 aggressive steps starting at 20.
+        // Presets (max→min): [20, 30, 40, 52, 63]
+        const avifCqMap = { max: 10, high: 20, medium: 30, low: 40, min: 50 };
+        const cqLevel = avifCqMap[qLevel] !== undefined ? avifCqMap[qLevel] : 40;
+        const avifSpeedMap = [10, 8, 6, 3, 1];
+        const avifSpeed = avifSpeedMap[targetEffort] !== undefined ? avifSpeedMap[targetEffort] : 6;
+
+        outputBuffer = await avifCodec.encode(imageData, { cqLevel, cqAlphaLevel: -1, speed: avifSpeed });
       } else if (targetMime === 'image/webp') {
-        outputBuffer = await webpCodec.encode(imageData, { quality: rawQuality, effort: targetEffort });
+        // WebP quality: 0 = worst, 100 = best. Aggressive spread across full range.
+        // Presets (max→min): [90, 75, 55, 30, 10]
+        const webpQualityMap = { max: 75, high: 55, medium: 40, low: 25, min: 10 };
+        const webpQuality = webpQualityMap[qLevel] !== undefined ? webpQualityMap[qLevel] : 55;
+        const webpEffortMap = [0, 1, 2, 4, 5];
+        const webpEffort = webpEffortMap[targetEffort] !== undefined ? webpEffortMap[targetEffort] : 2;
+
+        outputBuffer = await webpCodec.encode(imageData, { quality: webpQuality, method: webpEffort });
       } else {
         self.postMessage({ type: 'NEED_CANVAS_ENCODE', index, imageData });
         return;
@@ -362,6 +384,10 @@
       if (weightContainer) weightContainer.innerHTML = '';
       if (timeElement) timeElement.innerText = '...';
       if (downloadBtn) {
+        // Revoke the old object URL to avoid memory leaks
+        if (downloadBtn.href && downloadBtn.href.startsWith('blob:')) {
+          URL.revokeObjectURL(downloadBtn.href);
+        }
         downloadBtn.classList.add('d-none');
         downloadBtn.removeAttribute('href');
       }
@@ -396,6 +422,28 @@
     localStorage.setItem('img_exactFit', exactFitting.value);
   }
 
+  function toggleSpeedUI() {
+    const fmt = formatSelect.value;
+    const noSpeed = fmt === 'image/png' || fmt === 'image/jpeg';
+    const isAvif = fmt === 'image/avif';
+    const speedVal = parseInt(speedSelect.value, 10);
+    const speedCol = speedSelect.closest('.col-md-2');
+    const speedWarning = document.getElementById('speedWarning');
+
+    speedSelect.disabled = noSpeed;
+    speedCol.title = noSpeed ? 'Speed preset has no effect for PNG/JPEG (native browser encoder)' : '';
+    speedCol.style.opacity = noSpeed ? '0.45' : '';
+
+    // Show warning when AVIF + slow preset selected
+    if (isAvif && speedVal >= 3) {
+      speedWarning.classList.remove('d-none');
+      speedWarning.style.display = 'flex';
+    } else {
+      speedWarning.classList.add('d-none');
+      speedWarning.style.display = '';
+    }
+  }
+
   function toggleResizeUI() {
     const mode = resizeMode.value;
     
@@ -417,11 +465,12 @@
   }
 
   loadSavedConfig();
+  toggleSpeedUI();
   
   // Menu configuration change hooks
-  formatSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  formatSelect.addEventListener('change', () => { toggleSpeedUI(); saveConfig(); resetConversionState(); });
   qualitySelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
-  speedSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  speedSelect.addEventListener('change', () => { toggleSpeedUI(); saveConfig(); resetConversionState(); });
   threadsSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
   resizeValue.addEventListener('input', () => { saveConfig(); resetConversionState(); });
   exactWidth.addEventListener('input', () => { updateExactRatioText(); saveConfig(); resetConversionState(); });
@@ -448,6 +497,14 @@
   });
 
   imageInput.addEventListener('change', (e) => {
+    // Revoke existing preview URLs before clearing
+    selectedFiles.forEach((_, index) => {
+      const imgEl = document.getElementById(`preview-img-${index}`);
+      if (imgEl && imgEl.src && imgEl.src.startsWith('blob:')) URL.revokeObjectURL(imgEl.src);
+      const downloadBtn = document.getElementById(`download-btn-${index}`);
+      if (downloadBtn && downloadBtn.href && downloadBtn.href.startsWith('blob:')) URL.revokeObjectURL(downloadBtn.href);
+    });
+
     selectedFiles = Array.from(e.target.files);
     convertBtn.disabled = selectedFiles.length === 0;
     downloadZipBtn.classList.add('d-none');
@@ -495,76 +552,102 @@
     const workerUrl = URL.createObjectURL(workerBlob);
 
     await new Promise((resolve) => {
-      function launchNext() {
-        if (queue.length === 0 && activeWorkers.length === 0) {
-          resolve();
-          return;
-        }
+      let active = 0;
 
-        while (activeWorkers.length < maxThreads && queue.length > 0) {
+      function launchNext() {
+        if (queue.length === 0 && active === 0) { resolve(); return; }
+
+        while (active < maxThreads && queue.length > 0) {
           const { file, index } = queue.shift();
+          active++;
           updateCardStatus(index, 'processing');
           const imageStartTime = performance.now();
           const rotation = fileRotations[index] || 0;
+          const isNativeTarget = targetMime === 'image/png' || targetMime === 'image/jpeg';
 
+          if (isNativeTarget) {
+            // PNG/JPEG: skip worker entirely, process on main thread with concurrency control
+            (async () => {
+              try {
+                const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
+                document.getElementById(`res-${index}`).innerText =
+                  `${imgData.width}x${imgData.height} px (${parseFloat((imgData.width / imgData.height).toFixed(2))})`;
+                const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
+                finalizeFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime);
+                incrementStatSuccess();
+              } catch (err) {
+                updateCardStatus(index, 'error');
+                incrementStatError();
+              } finally {
+                active--;
+                launchNext();
+              }
+            })();
+            continue;
+          }
+
+          // WebP/AVIF: use WASM worker
           const worker = new Worker(workerUrl, { type: 'module' });
           activeWorkers.push(worker);
 
+          const cleanupWorker = () => {
+            worker.terminate();
+            const idx = activeWorkers.indexOf(worker);
+            if (idx > -1) activeWorkers.splice(idx, 1);
+            active--;
+            launchNext();
+          };
+
           worker.onmessage = async (e) => {
             const msg = e.data;
-
             if (msg.type === 'NEED_CANVAS_DECODE') {
               try {
                 const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                const computedRatio = parseFloat((imgData.width / imgData.height).toFixed(2));
-                document.getElementById(`res-${index}`).innerText = `${imgData.width}x${imgData.height} px (${computedRatio})`;
-                
-                if (targetMime === 'image/png' || targetMime === 'image/jpeg') {
-                  const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
-                  finalizeFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime);
-                  incrementStatSuccess();
-                  cleanupWorker(worker);
-                } else {
-                  worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
-                }
+                document.getElementById(`res-${index}`).innerText =
+                  `${imgData.width}x${imgData.height} px (${parseFloat((imgData.width / imgData.height).toFixed(2))})`;
+                worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
               } catch(err) {
-                handleFailure(index, worker);
+                updateCardStatus(index, 'error');
+                incrementStatError();
+                cleanupWorker();
               }
-            } 
-            else if (msg.type === 'SUCCESS') {
+            } else if (msg.type === 'NEED_CANVAS_ENCODE') {
+              try {
+                const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
+                finalizeFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime);
+                incrementStatSuccess();
+              } catch(err) {
+                updateCardStatus(index, 'error');
+                incrementStatError();
+              } finally {
+                cleanupWorker();
+              }
+            } else if (msg.type === 'SUCCESS') {
               finalizeFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime);
               incrementStatSuccess();
-              cleanupWorker(worker);
-            } 
-            else if (msg.type === 'ERROR') {
-              handleFailure(index, worker);
+              cleanupWorker();
+            } else if (msg.type === 'ERROR') {
+              updateCardStatus(index, 'error');
+              incrementStatError();
+              cleanupWorker();
             }
           };
 
           file.arrayBuffer().then(buf => {
             worker.postMessage({ arrayBuffer: buf, fileType: file.type, fileName: file.name, targetMime, rawQuality, targetEffort, index, qLevel, rotation, resizeMode: modeResize }, [buf]);
-          }).catch(() => handleFailure(index, worker));
+          }).catch(() => {
+            updateCardStatus(index, 'error');
+            incrementStatError();
+            cleanupWorker();
+          });
         }
-      }
-
-      function cleanupWorker(worker) {
-        worker.terminate();
-        const idx = activeWorkers.indexOf(worker);
-        if (idx > -1) activeWorkers.splice(idx, 1);
-        processedCount++;
-        launchNext();
-      }
-
-      function handleFailure(index, worker) {
-        updateCardStatus(index, 'error');
-        incrementStatError();
-        cleanupWorker(worker);
       }
 
       launchNext();
     });
 
     finalizeStatsTracking();
+    URL.revokeObjectURL(workerUrl);
     convertBtn.disabled = false;
     imageInput.disabled = false;
     if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
@@ -586,10 +669,12 @@
 
     const percentage = Math.round((blob.size / file.size) * 100);
     const difference = percentage - 100;
+    const isBigger = difference > 0;
     let weightText = `${percentage}%`;
     if (difference < 0) weightText += ` (${difference}%)`;
+    else if (difference > 0) weightText += ` (+${difference}%)`;
     
-    updateCardStatus(index, 'complete', url, finalFileName, weightText);
+    updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger);
   }
 
   function decodeResizeRotateCanvas(file, rotation, mode, val, targetW, targetH, strategy) {
@@ -649,18 +734,22 @@
         }
 
         resolve(fCtx.getImageData(0, 0, canvasW, canvasH));
-        URL.revokeObjectURL(img.src);
+        // Revoke after resolve so the browser has finished reading the image
+        setTimeout(() => URL.revokeObjectURL(img.src), 0);
       };
-      img.onerror = reject;
+      img.onerror = (e) => reject(new Error('Image load failed: ' + (e?.message || 'unknown')));
     });
   }
 
   function encodeWithCanvas(imageData, mimeType, quality) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
       canvas.width = imageData.width; canvas.height = imageData.height;
       canvas.getContext('2d').putImageData(imageData, 0, 0);
-      canvas.toBlob((blob) => blob.arrayBuffer().then(resolve), mimeType, quality);
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error('toBlob returned null')); return; }
+        blob.arrayBuffer().then(resolve).catch(reject);
+      }, mimeType, quality);
     });
   }
 
@@ -701,10 +790,10 @@
     });
   }
 
-  function updateCardStatus(index, state, downloadUrl = null, fileName = null, weightText = "") {
-    const statusContainer = document.getElementById(`status-container-${index}`);
-    const weightContainer = document.getElementById(`weight-container-${index}`);
-    const downloadBtn = document.getElementById(`download-btn-${index}`);
+  function updateCardStatus(index, state, downloadUrl = null, fileName = null, weightText = "", isBigger = false) {
+    const statusContainer = document.getElementById('status-container-' + index);
+    const weightContainer = document.getElementById('weight-container-' + index);
+    const downloadBtn = document.getElementById('download-btn-' + index);
 
     if (!statusContainer) return;
 
@@ -713,7 +802,8 @@
       statusContainer.innerHTML = `<div class="spinner-border spinner-border-sm text-primary" style="width:0.85rem; height:0.85rem;"></div>`;
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
-      weightContainer.innerHTML = `<span class="badge bg-success" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>`;
+      const badgeColor = isBigger ? 'bg-danger' : 'bg-success';
+      weightContainer.innerHTML = `<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
     } else if (state === 'error') {
       statusContainer.classList.remove('d-none');

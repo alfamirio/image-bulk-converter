@@ -2,6 +2,8 @@
 
 A fast, privacy-focused, browser-based bulk image converter. It allows you to convert multiple images simultaneously to modern formats like **AVIF** and **WebP** without uploading anything to a server. Everything runs completely client-side.
 
+For image to image comparison use [squoosh](https://squoosh.app/).
+
 ## Features
 
 * **100% Local Processing:** Your images never leave your computer. Processing happens entirely within the browser via WebAssembly (Wasm).
@@ -11,6 +13,18 @@ A fast, privacy-focused, browser-based bulk image converter. It allows you to co
 * **Smart Compression Metrics:** Instantly view the final file size ratio compared to the original. Badges turn red if the file size exceeds the original.
 * **Bulk Download:** Download individual converted images or grab them all at once in a single structured `.zip` archive.
 * **Persistent Settings:** Your preferred format, quality, speed, and thread settings are automatically saved via `localStorage`.
+
+---
+
+## Quality
+
+| Preset | AVIF `cqLevel` | WebP `quality` |
+|---|---|---|
+| Maximum | 10 | 75 |
+| High | 20 | 55 |
+| Medium | 30 | 40 |
+| Low | 40 | 25 |
+| Minimum | 50 | 10 |
 
 ---
 
