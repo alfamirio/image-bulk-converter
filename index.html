@@ -25,36 +25,43 @@
     .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.82rem; }
     .divider-sm { margin-top: 0.5rem !important; padding-top: 0.5rem !important; }
     .navbar-text-secure { font-size: 0.8rem; color: #aaa; }
+    .ratio-badge { font-size: 0.72rem; color: #6c757d; font-weight: normal; margin-left: 0.25rem; }
+    
+    /* Navbar Stats Style */
+    .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; background: #2b3035; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid #495057; }
+    .stat-pill { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 500; }
   </style>
 </head>
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm py-1">
   <div class="container">
-    <div class="d-flex align-items-center flex-wrap gap-2">
-      <a class="navbar-brand d-flex align-items-center me-2 py-1 fs-6" href="#">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-images me-2" viewBox="0 0 16 16">
-          <path d="M4.502 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
-          <path d="M14.002 13a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2V5A2 2 0 0 1 2 3h10a2 2 0 0 1 2 2v8zm-4-7.734-2.752 3.853-1.323-1.608L1.502 12h11l-2.5-3.734z"/>
-        </svg>
-        ImgConverter
-      </a>
-      <span class="navbar-text navbar-text-secure me-3 d-none d-sm-inline">
-        | All processing happens locally in your browser.
-      </span>
-      <button class="btn btn-danger btn-reset-nav rounded" id="resetConfigBtn" title="Reset to default configuration">
-        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" class="bi bi-trash-fill me-1" viewBox="0 0 16 16">
-          <path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5M8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5m3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0"/>
-        </svg>
-        Clear Config
-      </button>
-    </div>
-    
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto small">
-        <li class="nav-item"><a class="nav-link active py-1" href="#">Home</a></li>
-        <li class="nav-item"><a class="nav-link py-1" href="https://github.com" target="_blank" rel="noopener">GitHub</a></li>
-      </ul>
+    <div class="d-flex align-items-center flex-wrap gap-2 w-100 justify-content-between">
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <a class="navbar-brand d-flex align-items-center me-2 py-1 fs-6" href="#">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-images me-2" viewBox="0 0 16 16">
+            <path d="M4.502 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+            <path d="M14.002 13a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2V5A2 2 0 0 1 2 3h10a2 2 0 0 1 2 2v8zm-4-7.734-2.752 3.853-1.323-1.608L1.502 12h11l-2.5-3.734z"/>
+          </svg>
+          ImgConverter
+        </a>
+        <span class="navbar-text navbar-text-secure me-2 d-none d-md-inline">
+          | Local Processing
+        </span>
+        <button class="btn btn-danger btn-reset-nav rounded" id="resetConfigBtn" title="Reset to default configuration">
+          Clear Config
+        </button>
+      </div>
+
+      <div class="nav-stats-container d-none" id="navStatsTracker">
+        <span class="stat-pill text-light" id="statRemainingContainer">Remaining: <span id="statRemaining">0</span></span>
+        <span class="text-secondary">|</span>
+        <span class="stat-pill text-success">Success: <span id="statSuccess">0</span></span>
+        <span class="text-secondary">|</span>
+        <span class="stat-pill text-danger">Errors: <span id="statErrors">0</span></span>
+        <span class="text-secondary">|</span>
+        <span class="stat-pill text-warning">Time: <span id="statTotalTime">0.0s</span></span>
+      </div>
     </div>
   </div>
 </nav>
@@ -80,9 +87,9 @@
       <div class="col-md-2">
         <label for="qualitySelect" class="form-label form-label-sm fw-bold">Visual Quality</label>
         <select class="form-select form-select-sm" id="qualitySelect">
-          <option value="medium">Medium (60%)</option>
           <option value="max">Maximum (95%)</option>
           <option value="high">High (80%)</option>
+          <option value="medium" selected>Medium (60%)</option>
           <option value="low">Low (40%)</option>
           <option value="min">Minimum (20%)</option>
         </select>
@@ -91,8 +98,8 @@
       <div class="col-md-2">
         <label for="speedSelect" class="form-label form-label-sm fw-bold">Processing Speed</label>
         <select class="form-select form-select-sm" id="speedSelect">
-          <option value="1">1 - Very Fast</option>
           <option value="0">0 - Instant</option>
+          <option value="1" selected>1 - Very Fast</option>
           <option value="2">2 - Balanced</option>
           <option value="3">3 - Slow</option>
           <option value="4">4 - Max Compression</option>
@@ -104,7 +111,7 @@
         <select class="form-select form-select-sm" id="threadsSelect">
           <option value="1">1</option>
           <option value="2">2</option>
-          <option value="4">4</option>
+          <option value="4" selected>4</option>
           <option value="6">6</option>
           <option value="8">8</option>
         </select>
@@ -116,13 +123,23 @@
       </div>
     </div>
 
-    <div class="row compact-row border-top divider-sm">
-      <div class="col-md-3 m-0">
+    <div class="row compact-row border-top divider-sm align-items-end">
+      <div class="col-md-2 m-0">
+        <label for="rotateAllMode" class="form-label form-label-sm fw-bold">Rotate All</label>
+        <select class="form-select form-select-sm" id="rotateAllMode">
+          <option value="0" selected>No Rotation</option>
+          <option value="90">90° Clockwise</option>
+          <option value="180">180° Flip</option>
+          <option value="270">270° Counter-CW</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 m-0">
         <label for="resizeMode" class="form-label form-label-sm fw-bold">Resize Mode</label>
         <select class="form-select form-select-sm" id="resizeMode">
-          <option value="none">Original Dimensions (No Resize)</option>
-          <option value="exact">Exact Size (Custom W & H)</option>
-          <option value="scale">Scale Percentage (%)</option>
+          <option value="none" selected>Original Size</option>
+          <option value="exact">Exact Size (Custom)</option>
+          <option value="scale">Scale (%)</option>
           <option value="width">Max Width (px)</option>
           <option value="height">Max Height (px)</option>
         </select>
@@ -142,11 +159,11 @@
         <input type="number" class="form-control form-control-sm" id="exactHeight" min="1" value="600">
       </div>
       <div class="col-md-2 m-0 d-none" id="exactFittingContainer">
-        <label for="exactFitting" class="form-label form-label-sm fw-bold">Fitting Strategy</label>
+        <label for="exactFitting" class="form-label form-label-sm fw-bold">Strategy <span id="exactRatioLabel" class="ratio-badge"></span></label>
         <select class="form-select form-select-sm" id="exactFitting">
-          <option value="fit">Fit (Preserve Aspect, No Crop)</option>
-          <option value="fill">Fill (Crop & Center)</option>
-          <option value="stretch">Stretch (Ignore Aspect)</option>
+          <option value="fit" selected>Fit (No Crop)</option>
+          <option value="fill">Fill (Crop)</option>
+          <option value="stretch">Stretch</option>
         </select>
       </div>
     </div>
@@ -220,6 +237,8 @@
   const qualitySelect = document.getElementById('qualitySelect');
   const speedSelect = document.getElementById('speedSelect');
   const threadsSelect = document.getElementById('threadsSelect');
+  
+  const rotateAllMode = document.getElementById('rotateAllMode');
   const resizeMode = document.getElementById('resizeMode');
   const resizeValueContainer = document.getElementById('resizeValueContainer');
   const resizeValueLabel = document.getElementById('resizeValueLabel');
@@ -231,6 +250,7 @@
   const exactHeight = document.getElementById('exactHeight');
   const exactFittingContainer = document.getElementById('exactFittingContainer');
   const exactFitting = document.getElementById('exactFitting');
+  const exactRatioLabel = document.getElementById('exactRatioLabel');
 
   const convertBtn = document.getElementById('convertBtn');
   const downloadZipBtn = document.getElementById('downloadZipBtn');
@@ -238,23 +258,129 @@
   const statusElement = document.getElementById('status');
   const matrixContainer = document.getElementById('matrixContainer');
 
+  // Navigation Stats UI Hook elements
+  const navStatsTracker = document.getElementById('navStatsTracker');
+  const statRemainingContainer = document.getElementById('statRemainingContainer');
+  const statRemaining = document.getElementById('statRemaining');
+  const statSuccess = document.getElementById('statSuccess');
+  const statErrors = document.getElementById('statErrors');
+  const statTotalTime = document.getElementById('statTotalTime');
+
   let selectedFiles = [];
   let convertedFiles = [];
   let fileRotations = {};
   const qualityValues = { max: 95, high: 80, medium: 60, low: 40, min: 20 };
-  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit' };
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit' };
+
+  // Track global execution counters
+  let globalSuccessCount = 0;
+  let globalErrorCount = 0;
+  let globalRemainingCount = 0;
+  let statsTimerInterval = null;
+  let batchStartTime = 0;
+
+  function updateExactRatioText() {
+    const w = parseInt(exactWidth.value, 10);
+    const h = parseInt(exactHeight.value, 10);
+    if (w && h) {
+      exactRatioLabel.innerText = `(${parseFloat((w / h).toFixed(2))})`;
+    } else {
+      exactRatioLabel.innerText = '';
+    }
+  }
+
+  function applyGlobalRotation() {
+    const globalAngle = parseInt(rotateAllMode.value, 10);
+    selectedFiles.forEach((_, index) => {
+      fileRotations[index] = globalAngle;
+      const imgEl = document.getElementById(`preview-img-${index}`);
+      if (imgEl) {
+        imgEl.style.transform = `rotate(${globalAngle}deg)`;
+      }
+    });
+  }
+
+  function initStatsTracking(totalFiles) {
+    globalSuccessCount = 0;
+    globalErrorCount = 0;
+    globalRemainingCount = totalFiles;
+    
+    statSuccess.innerText = '0';
+    statErrors.innerText = '0';
+    statRemaining.innerText = totalFiles;
+    statTotalTime.innerText = '0.0s';
+    
+    statRemainingContainer.classList.remove('d-none');
+    navStatsTracker.classList.remove('d-none');
+    
+    clearInterval(statsTimerInterval);
+    batchStartTime = performance.now();
+    statsTimerInterval = setInterval(() => {
+      const elapsed = ((performance.now() - batchStartTime) / 1000).toFixed(1);
+      statTotalTime.innerText = `${elapsed}s`;
+    }, 100);
+  }
+
+  function incrementStatSuccess() {
+    globalSuccessCount++;
+    globalRemainingCount--;
+    statSuccess.innerText = globalSuccessCount;
+    statRemaining.innerText = globalRemainingCount;
+  }
+
+  function incrementStatError() {
+    globalErrorCount++;
+    globalRemainingCount--;
+    statErrors.innerText = globalErrorCount;
+    statRemaining.innerText = globalRemainingCount;
+  }
+
+  function finalizeStatsTracking() {
+    clearInterval(statsTimerInterval);
+    const finalElapsed = ((performance.now() - batchStartTime) / 1000).toFixed(2);
+    statTotalTime.innerText = `${finalElapsed}s`;
+    statRemainingContainer.classList.add('d-none'); 
+  }
+
+  // Resets the card workflow metrics when an option changes
+  function resetConversionState() {
+    convertedFiles = [];
+    downloadZipBtn.classList.add('d-none');
+    navStatsTracker.classList.add('d-none');
+    clearInterval(statsTimerInterval);
+
+    selectedFiles.forEach((_, index) => {
+      const statusContainer = document.getElementById(`status-container-${index}`);
+      const weightContainer = document.getElementById(`weight-container-${index}`);
+      const downloadBtn = document.getElementById(`download-btn-${index}`);
+      const timeElement = document.getElementById(`time-${index}`);
+      
+      if (statusContainer) {
+        statusContainer.innerHTML = `<span class="badge bg-secondary status-badge">Waiting</span>`;
+        statusContainer.classList.remove('d-none');
+      }
+      if (weightContainer) weightContainer.innerHTML = '';
+      if (timeElement) timeElement.innerText = '...';
+      if (downloadBtn) {
+        downloadBtn.classList.add('d-none');
+        downloadBtn.removeAttribute('href');
+      }
+    });
+  }
 
   function loadSavedConfig() {
     formatSelect.value = localStorage.getItem('img_format') || DEFAULT_CONFIG.format;
     qualitySelect.value = localStorage.getItem('img_quality') || DEFAULT_CONFIG.quality;
     speedSelect.value = localStorage.getItem('img_speed') || DEFAULT_CONFIG.speed;
     threadsSelect.value = localStorage.getItem('img_threads') || DEFAULT_CONFIG.threads;
+    rotateAllMode.value = localStorage.getItem('img_rotateAll') || DEFAULT_CONFIG.rotateAll;
     resizeMode.value = localStorage.getItem('img_resizeMode') || DEFAULT_CONFIG.resizeMode;
     resizeValue.value = localStorage.getItem('img_resizeValue') || DEFAULT_CONFIG.resizeValue;
     exactWidth.value = localStorage.getItem('img_exactW') || DEFAULT_CONFIG.exactW;
     exactHeight.value = localStorage.getItem('img_exactH') || DEFAULT_CONFIG.exactH;
     exactFitting.value = localStorage.getItem('img_exactFit') || DEFAULT_CONFIG.exactFit;
     toggleResizeUI();
+    updateExactRatioText();
   }
 
   function saveConfig() {
@@ -262,6 +388,7 @@
     localStorage.setItem('img_quality', qualitySelect.value);
     localStorage.setItem('img_speed', speedSelect.value);
     localStorage.setItem('img_threads', threadsSelect.value);
+    localStorage.setItem('img_rotateAll', rotateAllMode.value);
     localStorage.setItem('img_resizeMode', resizeMode.value);
     localStorage.setItem('img_resizeValue', resizeValue.value);
     localStorage.setItem('img_exactW', exactWidth.value);
@@ -290,34 +417,49 @@
   }
 
   loadSavedConfig();
-  formatSelect.addEventListener('change', saveConfig);
-  qualitySelect.addEventListener('change', saveConfig);
-  speedSelect.addEventListener('change', saveConfig);
-  threadsSelect.addEventListener('change', saveConfig);
-  resizeValue.addEventListener('input', saveConfig);
-  exactWidth.addEventListener('input', saveConfig);
-  exactHeight.addEventListener('input', saveConfig);
-  exactFitting.addEventListener('change', saveConfig);
+  
+  // Menu configuration change hooks
+  formatSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  qualitySelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  speedSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  threadsSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  resizeValue.addEventListener('input', () => { saveConfig(); resetConversionState(); });
+  exactWidth.addEventListener('input', () => { updateExactRatioText(); saveConfig(); resetConversionState(); });
+  exactHeight.addEventListener('input', () => { updateExactRatioText(); saveConfig(); resetConversionState(); });
+  exactFitting.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  
+  rotateAllMode.addEventListener('change', () => {
+    applyGlobalRotation();
+    saveConfig();
+    resetConversionState();
+  });
+  
   resizeMode.addEventListener('change', () => {
     toggleResizeUI();
     saveConfig();
+    resetConversionState();
   });
 
   resetConfigBtn.addEventListener('click', () => {
     localStorage.clear();
     loadSavedConfig();
+    applyGlobalRotation();
+    resetConversionState();
   });
 
   imageInput.addEventListener('change', (e) => {
     selectedFiles = Array.from(e.target.files);
     convertBtn.disabled = selectedFiles.length === 0;
     downloadZipBtn.classList.add('d-none');
+    navStatsTracker.classList.add('d-none');
     convertedFiles = [];
     fileRotations = {};
     matrixContainer.innerHTML = '';
+    
+    const globalAngle = parseInt(rotateAllMode.value, 10);
     selectedFiles.forEach((file, index) => {
-      fileRotations[index] = 0;
-      createImageCard(file, index);
+      fileRotations[index] = globalAngle;
+      createImageCard(file, index, globalAngle);
     });
   });
 
@@ -341,6 +483,8 @@
     imageInput.disabled = true;
     downloadZipBtn.classList.add('d-none');
     convertedFiles = [];
+    
+    initStatsTracking(selectedFiles.length);
     
     let processedCount = 0;
     const queue = [...selectedFiles.map((file, index) => ({ file, index }))];
@@ -372,11 +516,13 @@
             if (msg.type === 'NEED_CANVAS_DECODE') {
               try {
                 const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                document.getElementById(`res-${index}`).innerText = `${imgData.width}x${imgData.height} px`;
+                const computedRatio = parseFloat((imgData.width / imgData.height).toFixed(2));
+                document.getElementById(`res-${index}`).innerText = `${imgData.width}x${imgData.height} px (${computedRatio})`;
                 
                 if (targetMime === 'image/png' || targetMime === 'image/jpeg') {
                   const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
                   finalizeFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime);
+                  incrementStatSuccess();
                   cleanupWorker(worker);
                 } else {
                   worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
@@ -387,6 +533,7 @@
             } 
             else if (msg.type === 'SUCCESS') {
               finalizeFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime);
+              incrementStatSuccess();
               cleanupWorker(worker);
             } 
             else if (msg.type === 'ERROR') {
@@ -410,19 +557,23 @@
 
       function handleFailure(index, worker) {
         updateCardStatus(index, 'error');
+        incrementStatError();
         cleanupWorker(worker);
       }
 
       launchNext();
     });
 
+    finalizeStatsTracking();
     convertBtn.disabled = false;
     imageInput.disabled = false;
     if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
   });
 
   function finalizeFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime) {
-    document.getElementById(`res-${index}`).innerText = `${width}x${height} px`;
+    const computedRatio = parseFloat((width / height).toFixed(2));
+    document.getElementById(`res-${index}`).innerText = `${width}x${height} px (${computedRatio})`;
+    
     const blob = new Blob([buffer], { type: targetMime });
     const url = URL.createObjectURL(blob);
     const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
@@ -513,7 +664,7 @@
     });
   }
 
-  function createImageCard(file, index) {
+  function createImageCard(file, index, initialRotation = 0) {
     const col = document.createElement('div');
     col.className = 'col';
     col.innerHTML = `
@@ -522,7 +673,7 @@
           <button class="btn btn-light shadow-sm rotate-btn" id="rotate-btn-${index}">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
           </button>
-          <img src="${URL.createObjectURL(file)}" class="card-img-top" id="preview-img-${index}">
+          <img src="${URL.createObjectURL(file)}" class="card-img-top" id="preview-img-${index}" style="transform: rotate(${initialRotation}deg);">
         </div>
         <div class="card-body p-2 d-flex flex-column">
           <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.8rem;" title="${file.name}">${file.name}</p>
@@ -539,10 +690,14 @@
     matrixContainer.appendChild(col);
     
     const imgEl = col.querySelector(`#preview-img-${index}`);
-    imgEl.onload = () => { document.getElementById(`res-${index}`).innerText = `${imgEl.naturalWidth}x${imgEl.naturalHeight} px`; };
+    imgEl.onload = () => { 
+      const computedRatio = parseFloat((imgEl.naturalWidth / imgEl.naturalHeight).toFixed(2));
+      document.getElementById(`res-${index}`).innerText = `${imgEl.naturalWidth}x${imgEl.naturalHeight} px (${computedRatio})`; 
+    };
     col.querySelector(`#rotate-btn-${index}`).addEventListener('click', () => {
       fileRotations[index] = (fileRotations[index] + 90) % 360;
       imgEl.style.transform = `rotate(${fileRotations[index]}deg)`;
+      resetConversionState();
     });
   }
 
@@ -551,13 +706,17 @@
     const weightContainer = document.getElementById(`weight-container-${index}`);
     const downloadBtn = document.getElementById(`download-btn-${index}`);
 
+    if (!statusContainer) return;
+
     if (state === 'processing') {
+      statusContainer.classList.remove('d-none');
       statusContainer.innerHTML = `<div class="spinner-border spinner-border-sm text-primary" style="width:0.85rem; height:0.85rem;"></div>`;
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
       weightContainer.innerHTML = `<span class="badge bg-success" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
     } else if (state === 'error') {
+      statusContainer.classList.remove('d-none');
       statusContainer.innerHTML = `<span class="badge bg-danger status-badge">Error</span>`;
     }
   }
