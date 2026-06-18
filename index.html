@@ -155,12 +155,12 @@
         <input type="number" class="form-control form-control-sm" id="resizeValue" min="1" value="100">
       </div>
 
-      <div class="col-md-2 m-0 d-none" id="exactWidthContainer">
-        <label for="exactWidth" class="form-label form-label-sm fw-bold">Width (px)</label>
+      <div class="col-md-1 m-0 d-none" id="exactWidthContainer">
+        <label for="exactWidth" class="form-label form-label-sm fw-bold">W (px)</label>
         <input type="number" class="form-control form-control-sm" id="exactWidth" min="1" value="800">
       </div>
-      <div class="col-md-2 m-0 d-none" id="exactHeightContainer">
-        <label for="exactHeight" class="form-label form-label-sm fw-bold">Height (px)</label>
+      <div class="col-md-1 m-0 d-none" id="exactHeightContainer">
+        <label for="exactHeight" class="form-label form-label-sm fw-bold">H (px)</label>
         <input type="number" class="form-control form-control-sm" id="exactHeight" min="1" value="600">
       </div>
       <div class="col-md-2 m-0 d-none" id="exactFittingContainer">
@@ -174,7 +174,11 @@
 
       <div class="col-md-auto ms-auto m-0">
         <label class="form-label form-label-sm fw-bold d-block">Benchmark</label>
-        <div class="d-flex gap-1">
+        <div class="d-flex align-items-center gap-2">
+          <div class="form-check mb-0" title="Compute SSIM quality score after each conversion (slight overhead)">
+            <input class="form-check-input" type="checkbox" id="ssimCheck">
+            <label class="form-check-label form-label-sm fw-bold" for="ssimCheck" style="cursor:pointer;">SSIM</label>
+          </div>
           <button class="btn btn-outline-primary btn-sm-custom" id="batchQualityBtn" disabled title="Run all 5 quality presets with the selected format → ZIP">All Qualities</button>
           <button class="btn btn-outline-secondary btn-sm-custom" id="batchFormatBtn" disabled title="Run all 5 formats with the selected quality → ZIP">All Formats</button>
         </div>
@@ -188,6 +192,84 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- SSIM: Y+U+V channels, 11×11 Gaussian-weighted sliding window — matches ffmpeg ssim filter output -->
+<script>
+(function () {
+  const WIN = 11, HALF = 5;
+  // Pre-compute 11×11 Gaussian kernel (sigma=1.5), same as Wang et al. / ffmpeg
+  const KERNEL = (function () {
+    const k = new Float64Array(WIN * WIN);
+    let sum = 0;
+    for (let y = 0; y < WIN; y++) {
+      for (let x = 0; x < WIN; x++) {
+        const dx = x - HALF, dy = y - HALF;
+        const v = Math.exp(-(dx * dx + dy * dy) / (2 * 1.5 * 1.5));
+        k[y * WIN + x] = v; sum += v;
+      }
+    }
+    for (let i = 0; i < k.length; i++) k[i] /= sum;
+    return k;
+  })();
+
+  // Convert RGBA → three float32 planes: Y, Cb, Cr (BT.601 — matches ffmpeg bt470bg)
+  function toYCbCr(id) {
+    const d = id.data, n = id.width * id.height;
+    const Y = new Float32Array(n), Cb = new Float32Array(n), Cr = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+      Y[i]  =  0.299    * r + 0.587    * g + 0.114    * b;
+      Cb[i] = -0.168736 * r - 0.331264 * g + 0.5      * b + 128;
+      Cr[i] =  0.5      * r - 0.418688 * g - 0.081312 * b + 128;
+    }
+    return [Y, Cb, Cr];
+  }
+
+  // Compute mean SSIM for one channel plane
+  function channelSSIM(arrA, arrB, W, H, wA, wB) {
+    const K1 = 0.01, K2 = 0.03, L = 255;
+    const C1 = (K1 * L) ** 2, C2 = (K2 * L) ** 2;
+    let ssimSum = 0, count = 0;
+    for (let y = HALF; y < H - HALF; y += 2) {
+      for (let x = HALF; x < W - HALF; x += 2) {
+        let muA = 0, muB = 0;
+        for (let ky = 0; ky < WIN; ky++) {
+          for (let kx = 0; kx < WIN; kx++) {
+            const w = KERNEL[ky * WIN + kx];
+            muA += w * arrA[(y + ky - HALF) * wA + (x + kx - HALF)];
+            muB += w * arrB[(y + ky - HALF) * wB + (x + kx - HALF)];
+          }
+        }
+        let sA = 0, sB = 0, sAB = 0;
+        for (let ky = 0; ky < WIN; ky++) {
+          for (let kx = 0; kx < WIN; kx++) {
+            const w = KERNEL[ky * WIN + kx];
+            const da = arrA[(y + ky - HALF) * wA + (x + kx - HALF)] - muA;
+            const db = arrB[(y + ky - HALF) * wB + (x + kx - HALF)] - muB;
+            sA += w * da * da; sB += w * db * db; sAB += w * da * db;
+          }
+        }
+        ssimSum += (2 * muA * muB + C1) * (2 * sAB + C2) /
+                   ((muA * muA + muB * muB + C1) * (sA + sB + C2));
+        count++;
+      }
+    }
+    return count > 0 ? ssimSum / count : 1;
+  }
+
+  window.computeSSIM = function (imgA, imgB) {
+    const W = Math.min(imgA.width, imgB.width);
+    const H = Math.min(imgA.height, imgB.height);
+    const [aY, aCb, aCr] = toYCbCr(imgA);
+    const [bY, bCb, bCr] = toYCbCr(imgB);
+    const wA = imgA.width, wB = imgB.width;
+    const ssimY  = channelSSIM(aY,  bY,  W, H, wA, wB);
+    const ssimCb = channelSSIM(aCb, bCb, W, H, wA, wB);
+    const ssimCr = channelSSIM(aCr, bCr, W, H, wA, wB);
+    // Average Y+U+V with equal weight — matches ffmpeg "All" value
+    return (ssimY + ssimCb + ssimCr) / 3;
+  };
+})();
+</script>
 
 <script id="worker-script" type="text/plain">
   import * as avifCodec from "https://unpkg.com/@jsquash/avif@1.0.2/index.js?module";
@@ -295,6 +377,7 @@
   const batchQualityBtn = document.getElementById('batchQualityBtn');
   const batchFormatBtn = document.getElementById('batchFormatBtn');
   const resetConfigBtn = document.getElementById('resetConfigBtn');
+  const ssimCheck = document.getElementById('ssimCheck');
   const statusElement = document.getElementById('status');
   const matrixContainer = document.getElementById('matrixContainer');
 
@@ -310,7 +393,7 @@
   let convertedFiles = [];
   let fileRotations = {};
   const qualityValues = { max: 95, high: 80, medium: 60, low: 40, min: 20 };
-  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit' };
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false' };
 
   // Track global execution counters
   let globalSuccessCount = 0;
@@ -424,6 +507,7 @@
     exactWidth.value = localStorage.getItem('img_exactW') || DEFAULT_CONFIG.exactW;
     exactHeight.value = localStorage.getItem('img_exactH') || DEFAULT_CONFIG.exactH;
     exactFitting.value = localStorage.getItem('img_exactFit') || DEFAULT_CONFIG.exactFit;
+    ssimCheck.checked = (localStorage.getItem('img_ssim') ?? DEFAULT_CONFIG.ssim) !== 'false';
     toggleResizeUI();
     updateExactRatioText();
   }
@@ -439,6 +523,7 @@
     localStorage.setItem('img_exactW', exactWidth.value);
     localStorage.setItem('img_exactH', exactHeight.value);
     localStorage.setItem('img_exactFit', exactFitting.value);
+    localStorage.setItem('img_ssim', ssimCheck.checked ? 'true' : 'false');
   }
 
   function toggleSpeedUI() {
@@ -496,6 +581,7 @@
   exactHeight.addEventListener('input', () => { updateExactRatioText(); saveConfig(); resetConversionState(); });
   exactFitting.addEventListener('change', () => { saveConfig(); resetConversionState(); });
   
+  ssimCheck.addEventListener('change', () => { saveConfig(); });
   rotateAllMode.addEventListener('change', () => {
     applyGlobalRotation();
     saveConfig();
@@ -746,6 +832,55 @@
     URL.revokeObjectURL(workerUrl);
   }
 
+  // ── SSIM computation ─────────────────────────────────────────────────────────
+  async function getImageDataFromFile(file) {
+    const bitmap = await createImageBitmap(file, { colorSpaceConversion: 'none' });
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width; canvas.height = bitmap.height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  async function getImageDataFromBuffer(buffer, mimeType) {
+    const blob = new Blob([buffer], { type: mimeType });
+    const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width; canvas.height = bitmap.height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  async function computeAndShowSSIM(index, origFile, outBuffer, outMime) {
+    const ssimBadge = document.getElementById(`ssim-badge-${index}`);
+    if (!ssimBadge) return;
+    ssimBadge.className = 'badge bg-secondary';
+    ssimBadge.textContent = '…';
+    try {
+      const [origData, outData] = await Promise.all([
+        getImageDataFromFile(origFile),
+        getImageDataFromBuffer(outBuffer, outMime)
+      ]);
+
+      const score = window.computeSSIM(origData, outData);
+      const pct = (score * 100).toFixed(1);
+
+      let colorClass;
+      if (score >= 0.95)       colorClass = 'bg-success';
+      else if (score >= 0.85)  colorClass = 'bg-warning text-dark';
+      else                     colorClass = 'bg-danger';
+
+      ssimBadge.className = `badge ${colorClass}`;
+      ssimBadge.textContent = `SSIM ${pct}%`;
+      ssimBadge.title = `Structural Similarity Index: ${score.toFixed(4)}`;
+    } catch (err) {
+      console.error('SSIM error:', err);
+      ssimBadge.className = 'badge bg-secondary';
+      ssimBadge.textContent = 'SSIM –';
+    }
+  }
+
   // ── File finalizer (handles both card mode and batch/silent mode) ───────────
   function finalizeBatchFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName) {
     const computedRatio = parseFloat((width / height).toFixed(2));
@@ -769,6 +904,10 @@
       if (difference < 0) weightText += ` (${difference}%)`;
       else if (difference > 0) weightText += ` (+${difference}%)`;
       updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger);
+      if (ssimCheck.checked) {
+        const blobMimeForSsim = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
+        computeAndShowSSIM(index, file, buffer, blobMimeForSsim);
+      }
     }
   }
 
@@ -904,7 +1043,7 @@
             <div><strong>Time:</strong> <span id="time-${index}" class="text-primary fw-bold">...</span></div>
           </div>
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
-          <div id="weight-container-${index}" class="text-center my-1" style="font-size: 0.7rem;"></div>
+          <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.7rem;"></div>
           <a id="download-btn-${index}" class="btn btn-success btn-sm w-100 mt-1 d-none" style="font-size:0.75rem; padding:2px;" download>Download</a>
         </div>
       </div>
@@ -936,7 +1075,7 @@
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
       const badgeColor = isBigger ? 'bg-danger' : 'bg-success';
-      weightContainer.innerHTML = `<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>`;
+      weightContainer.innerHTML = `<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span><span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.65rem; padding: 2px 4px;">SSIM</span>`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
     } else if (state === 'error') {
       statusContainer.classList.remove('d-none');
