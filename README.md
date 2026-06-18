@@ -18,13 +18,13 @@ For image to image comparison use [squoosh](https://squoosh.app/).
 
 ## Quality
 
-| Preset | AVIF `cqLevel` | WebP `quality` |
-|---|---|---|
-| Maximum | 10 | 75 |
-| High | 20 | 55 |
-| Medium | 30 | 40 |
-| Low | 40 | 25 |
-| Minimum | 50 | 10 |
+| Preset | AVIF (cqLevel ↓) | WebP (quality ↑) | MozJPEG (quality ↑) |
+|--------|:-:|:-:|:-:|
+| Max | 10 | 75 | 90 |
+| High | 20 | 55 | 75 |
+| Medium | 30 | 40 | 60 |
+| Low | 40 | 25 | 40 |
+| Min | 50 | 10 | 20 |
 
 ---
 

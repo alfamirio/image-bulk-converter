@@ -79,6 +79,7 @@
         <select class="form-select form-select-sm" id="formatSelect">
           <option value="image/webp">WebP (Optimized)</option>
           <option value="image/avif">AVIF (Next-Gen)</option>
+          <option value="image/mozjpeg">MozJPEG (Better JPEG)</option>
           <option value="image/png">PNG (Lossless)</option>
           <option value="image/jpeg">JPEG (Standard)</option>
         </select>
@@ -183,6 +184,7 @@
 <script id="worker-script" type="text/plain">
   import * as avifCodec from "https://unpkg.com/@jsquash/avif@1.0.2/index.js?module";
   import * as webpCodec from "https://unpkg.com/@jsquash/webp@1.2.0/index.js?module";
+  import * as jpegCodec from "https://esm.sh/@jsquash/jpeg@1.4.0";
 
   self.onmessage = async (e) => {
     const { type, arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel, rotation, imageData, resizeMode } = e.data;
@@ -241,6 +243,12 @@
         const webpEffort = webpEffortMap[targetEffort] !== undefined ? webpEffortMap[targetEffort] : 2;
 
         outputBuffer = await webpCodec.encode(imageData, { quality: webpQuality, method: webpEffort });
+      } else if (targetMime === 'image/mozjpeg') {
+        // MozJPEG quality: 0 = worst, 100 = best.
+        const mozQualityMap = { max: 90, high: 75, medium: 60, low: 40, min: 20 };
+        const mozQuality = mozQualityMap[qLevel] !== undefined ? mozQualityMap[qLevel] : 60;
+
+        outputBuffer = await jpegCodec.encode(imageData, { quality: mozQuality });
       } else {
         self.postMessage({ type: 'NEED_CANVAS_ENCODE', index, imageData });
         return;
@@ -524,7 +532,7 @@
     if (selectedFiles.length === 0) return;
 
     const targetMime = formatSelect.value;
-    const targetExt = targetMime.split('/')[1].replace('jpeg', 'jpg');
+    const targetExt = targetMime === 'image/mozjpeg' ? 'jpg' : targetMime.split('/')[1].replace('jpeg', 'jpg');
     const qLevel = qualitySelect.value;
     const rawQuality = qualityValues[qLevel];
     const targetEffort = parseInt(speedSelect.value, 10);
@@ -657,7 +665,8 @@
     const computedRatio = parseFloat((width / height).toFixed(2));
     document.getElementById(`res-${index}`).innerText = `${width}x${height} px (${computedRatio})`;
     
-    const blob = new Blob([buffer], { type: targetMime });
+    const blobMime = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
+    const blob = new Blob([buffer], { type: blobMime });
     const url = URL.createObjectURL(blob);
     const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
     const finalFileName = `${originalName}.${targetExt}`;
