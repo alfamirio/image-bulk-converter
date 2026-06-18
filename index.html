@@ -171,12 +171,20 @@
           <option value="stretch">Stretch</option>
         </select>
       </div>
+
+      <div class="col-md-auto ms-auto m-0">
+        <label class="form-label form-label-sm fw-bold d-block">Benchmark</label>
+        <div class="d-flex gap-1">
+          <button class="btn btn-outline-primary btn-sm-custom" id="batchQualityBtn" disabled title="Run all 5 quality presets with the selected format → ZIP">All Qualities</button>
+          <button class="btn btn-outline-secondary btn-sm-custom" id="batchFormatBtn" disabled title="Run all 5 formats with the selected quality → ZIP">All Formats</button>
+        </div>
+      </div>
     </div>
-    
+
     <div id="status" class="mt-2 text-center small text-secondary"></div>
   </div>
 
-  <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 compact-row" id="matrixContainer"></div>
+  <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 compact-row mt-3" id="matrixContainer"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -284,6 +292,8 @@
 
   const convertBtn = document.getElementById('convertBtn');
   const downloadZipBtn = document.getElementById('downloadZipBtn');
+  const batchQualityBtn = document.getElementById('batchQualityBtn');
+  const batchFormatBtn = document.getElementById('batchFormatBtn');
   const resetConfigBtn = document.getElementById('resetConfigBtn');
   const statusElement = document.getElementById('status');
   const matrixContainer = document.getElementById('matrixContainer');
@@ -378,6 +388,7 @@
     downloadZipBtn.classList.add('d-none');
     navStatsTracker.classList.add('d-none');
     clearInterval(statsTimerInterval);
+    hideBatchProgress();
 
     selectedFiles.forEach((_, index) => {
       const statusContainer = document.getElementById(`status-container-${index}`);
@@ -515,6 +526,8 @@
 
     selectedFiles = Array.from(e.target.files);
     convertBtn.disabled = selectedFiles.length === 0;
+    batchQualityBtn.disabled = selectedFiles.length === 0;
+    batchFormatBtn.disabled = selectedFiles.length === 0;
     downloadZipBtn.classList.add('d-none');
     navStatsTracker.classList.add('d-none');
     convertedFiles = [];
@@ -530,160 +543,271 @@
 
   convertBtn.addEventListener('click', async () => {
     if (selectedFiles.length === 0) return;
-
     const targetMime = formatSelect.value;
     const targetExt = targetMime === 'image/mozjpeg' ? 'jpg' : targetMime.split('/')[1].replace('jpeg', 'jpg');
     const qLevel = qualitySelect.value;
     const rawQuality = qualityValues[qLevel];
     const targetEffort = parseInt(speedSelect.value, 10);
     const maxThreads = parseInt(threadsSelect.value, 10);
-    
     const modeResize = resizeMode.value;
     const valResize = parseFloat(resizeValue.value);
     const targetW = parseInt(exactWidth.value, 10);
     const targetH = parseInt(exactHeight.value, 10);
     const strategyFit = exactFitting.value;
 
-    convertBtn.disabled = true;
-    imageInput.disabled = true;
-    downloadZipBtn.classList.add('d-none');
-    convertedFiles = [];
-    
-    initStatsTracking(selectedFiles.length);
-    
-    let processedCount = 0;
-    const queue = [...selectedFiles.map((file, index) => ({ file, index }))];
-    const activeWorkers = [];
+    const jobs = selectedFiles.map((file, index) => ({
+      file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
+      modeResize, valResize, targetW, targetH, strategyFit,
+      updateCard: true
+    }));
 
+    setUIBusy(true);
+    convertedFiles = [];
+    initStatsTracking(jobs.length);
+
+    await runConversionQueue(jobs, maxThreads);
+
+    finalizeStatsTracking();
+    setUIBusy(false);
+    if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
+  });
+
+  // ── Batch Quality: all 5 quality presets × current format ──────────────────
+  batchQualityBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) return;
+    const targetMime = formatSelect.value;
+    const targetExt = targetMime === 'image/mozjpeg' ? 'jpg' : targetMime.split('/')[1].replace('jpeg', 'jpg');
+    const targetEffort = parseInt(speedSelect.value, 10);
+    const maxThreads = parseInt(threadsSelect.value, 10);
+    const modeResize = resizeMode.value;
+    const valResize = parseFloat(resizeValue.value);
+    const targetW = parseInt(exactWidth.value, 10);
+    const targetH = parseInt(exactHeight.value, 10);
+    const strategyFit = exactFitting.value;
+    const presets = ['max', 'high', 'medium', 'low', 'min'];
+
+    const jobs = [];
+    selectedFiles.forEach((file, index) => {
+      presets.forEach(qLevel => {
+        const rawQuality = qualityValues[qLevel];
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const outputName = `${baseName}-${qLevel}.${targetExt}`;
+        jobs.push({
+          file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
+          modeResize, valResize, targetW, targetH, strategyFit,
+          updateCard: false, outputName
+        });
+      });
+    });
+
+    setUIBusy(true);
+    convertedFiles = [];
+    showBatchProgress(0, jobs.length);
+
+    await runConversionQueue(jobs, maxThreads, (done, total) => showBatchProgress(done, total));
+
+    setUIBusy(false);
+    hideBatchProgress();
+    if (convertedFiles.length > 0) await triggerBatchZip('batch_qualities.zip');
+  });
+
+  // ── Batch Format: all 5 formats × current quality ──────────────────────────
+  batchFormatBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) return;
+    const qLevel = qualitySelect.value;
+    const rawQuality = qualityValues[qLevel];
+    const targetEffort = parseInt(speedSelect.value, 10);
+    const maxThreads = parseInt(threadsSelect.value, 10);
+    const modeResize = resizeMode.value;
+    const valResize = parseFloat(resizeValue.value);
+    const targetW = parseInt(exactWidth.value, 10);
+    const targetH = parseInt(exactHeight.value, 10);
+    const strategyFit = exactFitting.value;
+
+    const formats = [
+      { mime: 'image/webp',    ext: 'webp', label: 'webp'    },
+      { mime: 'image/avif',    ext: 'avif', label: 'avif'    },
+      { mime: 'image/mozjpeg', ext: 'jpg',  label: 'mozjpeg' },
+      { mime: 'image/jpeg',    ext: 'jpg',  label: 'jpeg'    },
+      { mime: 'image/png',     ext: 'png',  label: 'png'     },
+    ];
+
+    const jobs = [];
+    selectedFiles.forEach((file, index) => {
+      formats.forEach(({ mime, ext, label }) => {
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const outputName = `${baseName}-${label}.${ext}`;
+        jobs.push({
+          file, index, targetMime: mime, targetExt: ext, qLevel, rawQuality, targetEffort,
+          modeResize, valResize, targetW, targetH, strategyFit,
+          updateCard: false, outputName
+        });
+      });
+    });
+
+    setUIBusy(true);
+    convertedFiles = [];
+    showBatchProgress(0, jobs.length);
+
+    await runConversionQueue(jobs, maxThreads, (done, total) => showBatchProgress(done, total));
+
+    setUIBusy(false);
+    hideBatchProgress();
+    if (convertedFiles.length > 0) await triggerBatchZip('batch_formats.zip');
+  });
+
+  // ── Shared queue runner ─────────────────────────────────────────────────────
+  async function runConversionQueue(jobs, maxThreads, onProgress = null) {
     const workerCode = document.getElementById('worker-script').textContent;
     const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(workerBlob);
+    let doneCount = 0;
+    const total = jobs.length;
 
     await new Promise((resolve) => {
+      const queue = [...jobs];
       let active = 0;
 
       function launchNext() {
         if (queue.length === 0 && active === 0) { resolve(); return; }
 
         while (active < maxThreads && queue.length > 0) {
-          const { file, index } = queue.shift();
+          const job = queue.shift();
+          const { file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
+                  modeResize, valResize, targetW, targetH, strategyFit,
+                  updateCard, outputName } = job;
           active++;
-          updateCardStatus(index, 'processing');
+
+          if (updateCard) updateCardStatus(index, 'processing');
           const imageStartTime = performance.now();
           const rotation = fileRotations[index] || 0;
           const isNativeTarget = targetMime === 'image/png' || targetMime === 'image/jpeg';
 
+          const onDone = (success) => {
+            doneCount++;
+            if (onProgress) onProgress(doneCount, total);
+            if (updateCard) { success ? null : updateCardStatus(index, 'error'); }
+            if (updateCard) { success ? incrementStatSuccess() : incrementStatError(); }
+            active--;
+            launchNext();
+          };
+
           if (isNativeTarget) {
-            // PNG/JPEG: skip worker entirely, process on main thread with concurrency control
             (async () => {
               try {
                 const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                document.getElementById(`res-${index}`).innerText =
+                if (updateCard) document.getElementById(`res-${index}`).innerText =
                   `${imgData.width}x${imgData.height} px (${parseFloat((imgData.width / imgData.height).toFixed(2))})`;
                 const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
-                finalizeFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime);
-                incrementStatSuccess();
-              } catch (err) {
-                updateCardStatus(index, 'error');
-                incrementStatError();
-              } finally {
-                active--;
-                launchNext();
+                finalizeBatchFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
+                onDone(true);
+              } catch {
+                onDone(false);
               }
             })();
             continue;
           }
 
-          // WebP/AVIF: use WASM worker
           const worker = new Worker(workerUrl, { type: 'module' });
-          activeWorkers.push(worker);
-
-          const cleanupWorker = () => {
-            worker.terminate();
-            const idx = activeWorkers.indexOf(worker);
-            if (idx > -1) activeWorkers.splice(idx, 1);
-            active--;
-            launchNext();
-          };
+          const cleanupWorker = (success) => { worker.terminate(); onDone(success); };
 
           worker.onmessage = async (e) => {
             const msg = e.data;
             if (msg.type === 'NEED_CANVAS_DECODE') {
               try {
                 const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                document.getElementById(`res-${index}`).innerText =
+                if (updateCard) document.getElementById(`res-${index}`).innerText =
                   `${imgData.width}x${imgData.height} px (${parseFloat((imgData.width / imgData.height).toFixed(2))})`;
                 worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
-              } catch(err) {
-                updateCardStatus(index, 'error');
-                incrementStatError();
-                cleanupWorker();
-              }
+              } catch { updateCardStatus(index, 'error'); cleanupWorker(false); }
             } else if (msg.type === 'NEED_CANVAS_ENCODE') {
               try {
                 const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
-                finalizeFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime);
-                incrementStatSuccess();
-              } catch(err) {
-                updateCardStatus(index, 'error');
-                incrementStatError();
-              } finally {
-                cleanupWorker();
-              }
+                finalizeBatchFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
+                cleanupWorker(true);
+              } catch { cleanupWorker(false); }
             } else if (msg.type === 'SUCCESS') {
-              finalizeFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime);
-              incrementStatSuccess();
-              cleanupWorker();
+              finalizeBatchFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
+              cleanupWorker(true);
             } else if (msg.type === 'ERROR') {
-              updateCardStatus(index, 'error');
-              incrementStatError();
-              cleanupWorker();
+              if (updateCard) updateCardStatus(index, 'error');
+              cleanupWorker(false);
             }
           };
 
           file.arrayBuffer().then(buf => {
             worker.postMessage({ arrayBuffer: buf, fileType: file.type, fileName: file.name, targetMime, rawQuality, targetEffort, index, qLevel, rotation, resizeMode: modeResize }, [buf]);
-          }).catch(() => {
-            updateCardStatus(index, 'error');
-            incrementStatError();
-            cleanupWorker();
-          });
+          }).catch(() => cleanupWorker(false));
         }
       }
-
       launchNext();
     });
 
-    finalizeStatsTracking();
     URL.revokeObjectURL(workerUrl);
-    convertBtn.disabled = false;
-    imageInput.disabled = false;
-    if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
-  });
+  }
 
-  function finalizeFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime) {
+  // ── File finalizer (handles both card mode and batch/silent mode) ───────────
+  function finalizeBatchFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName) {
     const computedRatio = parseFloat((width / height).toFixed(2));
-    document.getElementById(`res-${index}`).innerText = `${width}x${height} px (${computedRatio})`;
-    
+    if (updateCard) document.getElementById(`res-${index}`).innerText = `${width}x${height} px (${computedRatio})`;
+
     const blobMime = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
     const blob = new Blob([buffer], { type: blobMime });
     const url = URL.createObjectURL(blob);
-    const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
-    const finalFileName = `${originalName}.${targetExt}`;
-    
-    convertedFiles.push({ name: finalFileName, blob });
-    
-    const durationSec = ((performance.now() - imageStartTime) / 1000).toFixed(2);
-    document.getElementById(`time-${index}`).innerText = `${durationSec}s`;
+    const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+    const finalFileName = outputName || `${baseName}.${targetExt}`;
 
-    const percentage = Math.round((blob.size / file.size) * 100);
-    const difference = percentage - 100;
-    const isBigger = difference > 0;
-    let weightText = `${percentage}%`;
-    if (difference < 0) weightText += ` (${difference}%)`;
-    else if (difference > 0) weightText += ` (+${difference}%)`;
-    
-    updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger);
+    convertedFiles.push({ name: finalFileName, blob });
+
+    if (updateCard) {
+      const durationSec = ((performance.now() - imageStartTime) / 1000).toFixed(2);
+      document.getElementById(`time-${index}`).innerText = `${durationSec}s`;
+      const percentage = Math.round((blob.size / file.size) * 100);
+      const difference = percentage - 100;
+      const isBigger = difference > 0;
+      let weightText = `${percentage}%`;
+      if (difference < 0) weightText += ` (${difference}%)`;
+      else if (difference > 0) weightText += ` (+${difference}%)`;
+      updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger);
+    }
+  }
+
+  // keep old finalizeFile working (used nowhere else now, but just in case)
+  function finalizeFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime) {
+    finalizeBatchFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime, true, null);
+  }
+
+  // ── Batch helpers ───────────────────────────────────────────────────────────
+  function setUIBusy(busy) {
+    convertBtn.disabled = busy || selectedFiles.length === 0;
+    batchQualityBtn.disabled = busy || selectedFiles.length === 0;
+    batchFormatBtn.disabled = busy || selectedFiles.length === 0;
+    imageInput.disabled = busy;
+    if (busy) downloadZipBtn.classList.add('d-none');
+  }
+
+  function showBatchProgress(done, total) {
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    statusElement.innerHTML = `
+      <div class="d-flex align-items-center gap-2 justify-content-center">
+        <span class="text-secondary" style="font-size:0.78rem;">Processing ${done}/${total}</span>
+        <div class="progress flex-grow-1" style="height:6px; max-width:200px;">
+          <div class="progress-bar bg-primary" style="width:${pct}%"></div>
+        </div>
+        <span class="text-secondary" style="font-size:0.78rem;">${pct}%</span>
+      </div>`;
+  }
+
+  function hideBatchProgress() { statusElement.innerHTML = ''; }
+
+  async function triggerBatchZip(zipName) {
+    const zip = new JSZip();
+    convertedFiles.forEach(f => zip.file(f.name, f.blob));
+    const zipContent = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(zipContent);
+    link.download = zipName;
+    link.click();
   }
 
   function decodeResizeRotateCanvas(file, rotation, mode, val, targetW, targetH, strategy) {
@@ -822,11 +946,7 @@
 
   downloadZipBtn.addEventListener('click', async () => {
     if (convertedFiles.length === 0) return;
-    const zip = new JSZip();
-    convertedFiles.forEach(file => zip.file(file.name, file.blob));
-    const zipContent = await zip.generateAsync({ type: "blob" });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(zipContent); link.download = "converted_images.zip"; link.click();
+    await triggerBatchZip('converted_images.zip');
   });
 </script>
 
