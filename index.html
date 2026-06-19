@@ -26,6 +26,15 @@
     .divider-sm { margin-top: 0.5rem !important; padding-top: 0.5rem !important; }
     .navbar-text-secure { font-size: 0.8rem; color: #aaa; }
     .ratio-badge { font-size: 0.72rem; color: #6c757d; font-weight: normal; margin-left: 0.25rem; }
+
+    /* Format badges (input/output file type) */
+    .fmt-badge { font-size: 0.62rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; margin-left: 0.35rem; color: #fff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.02em; }
+    .fmt-badge-jpg  { background-color: #fd7e14; } /* orange */
+    .fmt-badge-png  { background-color: #ffc107; color: #3a2e00; } /* yellow */
+    .fmt-badge-webp { background-color: #0d6efd; } /* blue */
+    .fmt-badge-avif { background-color: #198754; } /* green */
+    .fmt-badge-unknown { background-color: #6c757d; }
+    .fmt-arrow { font-size: 0.65rem; color: #6c757d; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; }
     
     /* Navbar Stats Style */
     .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; background: #2b3035; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid #495057; }
@@ -487,6 +496,7 @@
       if (timeElement) timeElement.innerText = '...';
       const memEl = document.getElementById(`mem-${index}`);
       if (memEl) memEl.innerHTML = formatBytes(selectedFiles[index].size);
+      setFormatBadge(index, selectedFiles[index].name);
       if (downloadBtn) {
         // Revoke the old object URL to avoid memory leaks
         if (downloadBtn.href && downloadBtn.href.startsWith('blob:')) {
@@ -784,8 +794,6 @@
             (async () => {
               try {
                 const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                if (updateCard) document.getElementById(`res-${index}`).innerText =
-                  `${imgData.width}x${imgData.height} px (${parseFloat((imgData.width / imgData.height).toFixed(2))})`;
                 const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
                 finalizeBatchFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
                 onDone(true);
@@ -804,8 +812,6 @@
             if (msg.type === 'NEED_CANVAS_DECODE') {
               try {
                 const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                if (updateCard) document.getElementById(`res-${index}`).innerText =
-                  `${imgData.width}x${imgData.height} px (${parseFloat((imgData.width / imgData.height).toFixed(2))})`;
                 worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
               } catch { updateCardStatus(index, 'error'); cleanupWorker(false); }
             } else if (msg.type === 'NEED_CANVAS_ENCODE') {
@@ -886,7 +892,28 @@
   // ── File finalizer (handles both card mode and batch/silent mode) ───────────
   function finalizeBatchFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName) {
     const computedRatio = parseFloat((width / height).toFixed(2));
-    if (updateCard) document.getElementById(`res-${index}`).innerText = `${width}x${height} px (${computedRatio})`;
+    if (updateCard) {
+      const resEl = document.getElementById(`res-${index}`);
+      if (resEl) {
+        // Capture original resolution on first conversion
+        if (!resEl.dataset.origRes) {
+          const imgEl = document.getElementById(`preview-img-${index}`);
+          if (imgEl && imgEl.naturalWidth) {
+            resEl.dataset.origRes = `${imgEl.naturalWidth}x${imgEl.naturalHeight}`;
+            resEl.dataset.origRatio = parseFloat((imgEl.naturalWidth / imgEl.naturalHeight).toFixed(2));
+          }
+        }
+        const origRes = resEl.dataset.origRes || '';
+        const origRatio = resEl.dataset.origRatio || '';
+        const newRes = `${width}x${height}`;
+        if (origRes && origRes !== newRes) {
+          resEl.innerHTML = `${origRes} (${origRatio}) <span style="color:#6c757d;">\u2192</span> <span style="font-weight:600;">${newRes} px (${computedRatio})</span>`;
+        } else {
+          resEl.innerText = `${newRes} px (${computedRatio})`;
+        }
+      }
+      setFormatBadge(index, file.name, targetExt);
+    }
 
     const blobMime = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
     const blob = new Blob([buffer], { type: blobMime });
@@ -1037,6 +1064,40 @@
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   }
 
+  // ── Format badge helpers (input/output file type pill) ──────────────────────
+  function normalizeFormatKey(mimeOrExtOrName) {
+    if (!mimeOrExtOrName) return 'unknown';
+    let s = mimeOrExtOrName.toLowerCase();
+    if (s.includes('/')) s = s.split('/')[1];      // mime type -> subtype
+    if (s.includes('.')) s = s.substring(s.lastIndexOf('.') + 1); // filename -> ext
+    if (s === 'jpg' || s === 'jpeg' || s === 'mozjpeg') return 'jpg';
+    if (s === 'png') return 'png';
+    if (s === 'webp') return 'webp';
+    if (s === 'avif') return 'avif';
+    return 'unknown';
+  }
+
+  function formatBadgeHtml(mimeOrExtOrName) {
+    const key = normalizeFormatKey(mimeOrExtOrName);
+    const label = key === 'unknown' ? '?' : key;
+    return `<span class="fmt-badge fmt-badge-${key}">${label}</span>`;
+  }
+
+  function formatBadgePairHtml(fromMimeOrExtOrName, toMimeOrExtOrName) {
+    const fromKey = normalizeFormatKey(fromMimeOrExtOrName);
+    const toKey = normalizeFormatKey(toMimeOrExtOrName);
+    return `${formatBadgeHtml(fromMimeOrExtOrName)}<span class="fmt-arrow">&rarr;</span>${formatBadgeHtml(toMimeOrExtOrName)}`;
+  }
+
+  function setFormatBadge(index, mimeOrExtOrName, toMimeOrExtOrName = null) {
+    const el = document.getElementById(`fmt-badge-${index}`);
+    if (!el) return;
+    const inner = toMimeOrExtOrName
+      ? formatBadgePairHtml(mimeOrExtOrName, toMimeOrExtOrName)
+      : formatBadgeHtml(mimeOrExtOrName);
+    el.outerHTML = `<span id="fmt-badge-${index}">${inner}</span>`;
+  }
+
   function createImageCard(file, index, initialRotation = 0) {
     const col = document.createElement('div');
     col.className = 'col';
@@ -1050,6 +1111,7 @@
         </div>
         <div class="card-body p-2 d-flex flex-column">
           <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.8rem;" title="${file.name}">${file.name}</p>
+          <div class="mb-1" style="font-size:0.72rem; line-height:1.3;"><span id="fmt-badge-${index}">${formatBadgeHtml(file.name)}</span></div>
           <div class="img-meta mb-1">
             <div><span id="res-${index}">...</span></div>
             <div><span id="mem-${index}">${formatBytes(file.size)}</span></div>
