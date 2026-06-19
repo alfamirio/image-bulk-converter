@@ -1465,7 +1465,7 @@
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
           <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.7rem;"></div>
           <div class="d-flex gap-1 mt-1">
-            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px; background:#6f42c1; color:#fff; border:none;" onclick="openPreviewModal(document.getElementById('preview-img-${index}').src, document.getElementById('download-btn-${index}').href, document.getElementById('download-btn-${index}').download, '${file.name}', document.getElementById('res-${index}').innerText)">Preview</button>
+            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px; background:#6f42c1; color:#fff; border:none;" onclick="openPreviewModal(document.getElementById('preview-img-${index}').src, document.getElementById('download-btn-${index}').href, document.getElementById('download-btn-${index}').download, '${file.name}', document.getElementById('res-${index}').innerText, this.dataset.timeSec, this.dataset.weightText, this.dataset.isBigger === 'true', this.dataset.origFmt, this.dataset.convFmt)" data-orig-fmt="${file.name}">Preview</button>
             <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px;" download>Download</a>
           </div>
         </div>
@@ -1503,7 +1503,13 @@
       weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>${ssimBadge}`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
       const previewBtn = document.getElementById('preview-btn-' + index);
-      if (previewBtn) previewBtn.classList.remove('d-none');
+      if (previewBtn) {
+        if (timeSec !== null) previewBtn.dataset.timeSec = timeSec;
+        previewBtn.dataset.weightText = weightText;
+        previewBtn.dataset.isBigger = isBigger ? 'true' : 'false';
+        if (fileName) previewBtn.dataset.convFmt = fileName;
+        previewBtn.classList.remove('d-none');
+      }
     } else if (state === 'error') {
       statusContainer.classList.remove('d-none');
       statusContainer.innerHTML = `<span class="badge bg-danger status-badge">Error</span>`;
@@ -1601,7 +1607,19 @@
       return (n / (1024 * 1024)).toFixed(2) + ' MB';
     }
 
-    window.openPreviewModal = function (origSrc, convSrc, convName, fileName, origResText) {
+    function fmtBadge(nameOrMime) {
+      if (!nameOrMime) return '';
+      let s = nameOrMime.toLowerCase();
+      if (s.includes('/')) s = s.split('/')[1];
+      if (s.includes('.')) s = s.substring(s.lastIndexOf('.') + 1);
+      if (s === 'mozjpeg' || s === 'jpeg') s = 'jpg';
+      const colors = { jpg: '#fd7e14', png: '#ffc107', webp: '#0d6efd', avif: '#198754' };
+      const bg = colors[s] || '#6c757d';
+      const textColor = s === 'png' ? '#3a2e00' : '#fff';
+      return `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:${bg};color:${textColor};text-transform:uppercase;letter-spacing:0.03em;vertical-align:middle;">${s}</span>`;
+    }
+
+    window.openPreviewModal = function (origSrc, convSrc, convName, fileName, origResText, timeSec, weightText, isBigger, origFmt, convFmt) {
       origImg.src = origSrc;
       convImg.src = convSrc;
       origLine.innerHTML = '<span class="preview-label original">Original</span> ' + (fileName || '');
@@ -1612,8 +1630,10 @@
       getBlob(origSrc, function(b) {
         const size = b ? fmtBytes(b.size) : '';
         const res  = origResText || '';
-        origLine.innerHTML = '<span class="preview-label original">Original</span> '
-          + (fileName || '')
+        origLine.innerHTML =
+          '<span class="preview-label original">Original</span> '
+          + fmtBadge(origFmt || fileName)
+          + ' ' + (fileName || '')
           + (res  ? ' - ' + res  : '')
           + (size ? ' - ' + size : '');
       });
@@ -1623,10 +1643,21 @@
         const res = (w && h) ? `${w}×${h} px (${(w/h).toFixed(2)})` : '';
         getBlob(convSrc, function(b) {
           const size = b ? fmtBytes(b.size) : '';
-          convLine.innerHTML = '<span class="preview-label converted">Converted</span> '
-            + (convName || '')
+          const timeBadge = timeSec != null
+            ? `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
+            : '';
+          const wColor = isBigger ? '#dc3545' : '#198754';
+          const weightBadge = weightText
+            ? `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
+            : '';
+          convLine.innerHTML =
+            '<span class="preview-label converted">Converted</span> '
+            + fmtBadge(convFmt || convName)
+            + ' ' + (convName || '')
             + (res  ? ' - ' + res  : '')
-            + (size ? ' - ' + size : '');
+            + (size ? ' - ' + size : '')
+            + (timeBadge  ? ' - ' + timeBadge  : '')
+            + (weightBadge ? ' - ' + weightBadge : '');
         });
       };
     };
