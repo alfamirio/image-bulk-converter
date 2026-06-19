@@ -175,8 +175,8 @@
       <div class="col-md-auto ms-auto m-0">
         <label class="form-label form-label-sm fw-bold d-block">Benchmark</label>
         <div class="d-flex align-items-center gap-2">
-          <div class="form-check mb-0" title="Compute SSIM quality score after each conversion (slight overhead)">
-            <input class="form-check-input" type="checkbox" id="ssimCheck">
+          <div class="form-check form-switch mb-0" title="Compute SSIM quality score after each conversion (slight overhead)">
+            <input class="form-check-input" type="checkbox" role="switch" id="ssimCheck">
             <label class="form-check-label form-label-sm fw-bold" for="ssimCheck" style="cursor:pointer;">SSIM</label>
           </div>
           <button class="btn btn-outline-primary btn-sm-custom" id="batchQualityBtn" disabled title="Run all 5 quality presets with the selected format → ZIP">All Qualities</button>
@@ -485,6 +485,8 @@
       }
       if (weightContainer) weightContainer.innerHTML = '';
       if (timeElement) timeElement.innerText = '...';
+      const memEl = document.getElementById(`mem-${index}`);
+      if (memEl) memEl.innerHTML = formatBytes(selectedFiles[index].size);
       if (downloadBtn) {
         // Revoke the old object URL to avoid memory leaks
         if (downloadBtn.href && downloadBtn.href.startsWith('blob:')) {
@@ -896,14 +898,18 @@
 
     if (updateCard) {
       const durationSec = ((performance.now() - imageStartTime) / 1000).toFixed(2);
-      document.getElementById(`time-${index}`).innerText = `${durationSec}s`;
       const percentage = Math.round((blob.size / file.size) * 100);
       const difference = percentage - 100;
       const isBigger = difference > 0;
       let weightText = `${percentage}%`;
       if (difference < 0) weightText += ` (${difference}%)`;
       else if (difference > 0) weightText += ` (+${difference}%)`;
-      updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger);
+      const memEl = document.getElementById(`mem-${index}`);
+      if (memEl) {
+        const afterColor = isBigger ? 'color:#dc3545;' : 'color:#198754;';
+        memEl.innerHTML = `${formatBytes(file.size)} → <span style="${afterColor} font-weight:600;">${formatBytes(blob.size)}</span>`;
+      }
+      updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger, durationSec);
       if (ssimCheck.checked) {
         const blobMimeForSsim = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
         computeAndShowSSIM(index, file, buffer, blobMimeForSsim);
@@ -1025,6 +1031,12 @@
     });
   }
 
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
   function createImageCard(file, index, initialRotation = 0) {
     const col = document.createElement('div');
     col.className = 'col';
@@ -1039,8 +1051,8 @@
         <div class="card-body p-2 d-flex flex-column">
           <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.8rem;" title="${file.name}">${file.name}</p>
           <div class="img-meta mb-1">
-            <div><strong>Dim:</strong> <span id="res-${index}">...</span></div>
-            <div><strong>Time:</strong> <span id="time-${index}" class="text-primary fw-bold">...</span></div>
+            <div><span id="res-${index}">...</span></div>
+            <div><span id="mem-${index}">${formatBytes(file.size)}</span></div>
           </div>
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
           <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.7rem;"></div>
@@ -1062,7 +1074,7 @@
     });
   }
 
-  function updateCardStatus(index, state, downloadUrl = null, fileName = null, weightText = "", isBigger = false) {
+  function updateCardStatus(index, state, downloadUrl = null, fileName = null, weightText = "", isBigger = false, timeSec = null) {
     const statusContainer = document.getElementById('status-container-' + index);
     const weightContainer = document.getElementById('weight-container-' + index);
     const downloadBtn = document.getElementById('download-btn-' + index);
@@ -1075,7 +1087,9 @@
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
       const badgeColor = isBigger ? 'bg-danger' : 'bg-success';
-      weightContainer.innerHTML = `<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span><span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.65rem; padding: 2px 4px;">SSIM</span>`;
+      const timeBadge = timeSec !== null ? `<span class="badge bg-primary" style="font-size: 0.65rem; padding: 2px 4px;">${timeSec}s</span>` : '';
+      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.65rem; padding: 2px 4px;">SSIM</span>` : '';
+      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>${ssimBadge}`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
     } else if (state === 'error') {
       statusContainer.classList.remove('d-none');
