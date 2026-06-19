@@ -39,6 +39,48 @@ For image to image comparison use [squoosh](https://squoosh.app/).
 
 ---
 
+## Tests
+### Automated Testing
+
+The project includes an automated end-to-end testing suite using **Playwright** to validate the frontend conversion workflow under a local server environment.
+
+### Prerequisites
+
+Ensure you have installed the development dependencies in the root directory:
+```bash
+npm install -D @playwright/test http-server
+npx playwright install
+
+```
+
+The test execution is orchestrated via playwright.config.js in the root folder, which manages the lifecycle of the local server automatically:
+
+### Running the Tests
+
+To execute the suite, run the following commands from the project root:
+
+* **Headless execution (default):**
+```bash
+npx playwright test
+
+```
+
+
+* **Headed execution (see the browser actions live):**
+```bash
+npx playwright test --headed
+
+```
+
+
+* **Debug mode (step-by-step inspector):**
+```bash
+npx playwright test --debug
+
+```
+
+---
+
 ## Getting Started
 
 ### Prerequisites
@@ -50,12 +92,6 @@ You **must** serve the project using a local HTTP server.
 ### Running it Locally
 
 1. Clone or save the project files into a folder:
-```bash
-mkdir img-converter && cd img-converter
-# Save the index.html into this folder
-
-```
-
 
 2. Start a simple local server. You can use any of the following standard developer tools:
 * **Using NodeJS (npx):**

@@ -1,0 +1,12 @@
+# node stuff
+node_modules/
+node_modules/*
+package.json
+package-lock.json
+
+# test
+test-results/
+
+
+# Directorios temporales creados por el script
+tmp/
