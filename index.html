@@ -40,6 +40,21 @@
 
     .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; background: #2b3035; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid #495057; }
     .stat-pill { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 500; }
+
+    /* Preview modal */
+    #previewModal { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.92); align-items:center; justify-content:center; padding:10px; }
+    #previewModal.active { display:flex; }
+    #previewModal .preview-box { position:relative; background:#1a1a1a; border-radius:10px; padding:12px; box-shadow:0 8px 40px rgba(0,0,0,0.7); display:flex; flex-direction:column; align-items:center; width:98vw; max-width:98vw; height:96vh; max-height:96vh; box-sizing:border-box; }
+    #previewModal .preview-close { position:absolute; top:-13px; right:-13px; width:28px; height:28px; border-radius:50%; background:#6f42c1; border:none; color:#fff; font-size:1.1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.5); flex-shrink:0; z-index:1; }
+    #previewModal .preview-close:hover { background:#5a2ea0; }
+    #previewModal .preview-panels { display:flex; gap:10px; align-items:flex-start; width:100%; flex:1; min-height:0; }
+    #previewModal .preview-panel { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; height:100%; }
+    #previewModal .preview-panel img { width:100%; flex:1; min-height:0; object-fit:contain; border-radius:4px; border:1px solid #333; display:block; background:#111; }
+    #previewModal .preview-divider { width:1px; background:#444; align-self:stretch; margin:0 2px; flex-shrink:0; }
+    #previewModal .preview-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:2px 8px; border-radius:3px; display:inline-block; vertical-align:middle; }
+    #previewModal .preview-label.original { background:#495057; color:#fff; }
+    #previewModal .preview-label.converted { background:#6f42c1; color:#fff; }
+    #previewModal .preview-meta { color:#999; font-size:0.72rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
   </style>
 </head>
 <body>
@@ -614,6 +629,8 @@
         downloadBtn.classList.add('d-none');
         downloadBtn.removeAttribute('href');
       }
+      const previewBtn = document.getElementById(`preview-btn-${index}`);
+      if (previewBtn) previewBtn.classList.add('d-none');
     });
   }
 
@@ -1447,7 +1464,10 @@
           </div>
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
           <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.7rem;"></div>
-          <a id="download-btn-${index}" class="btn btn-success btn-sm w-100 mt-1 d-none" style="font-size:0.75rem; padding:2px;" download>Download</a>
+          <div class="d-flex gap-1 mt-1">
+            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px; background:#6f42c1; color:#fff; border:none;" onclick="openPreviewModal(document.getElementById('preview-img-${index}').src, document.getElementById('download-btn-${index}').href, document.getElementById('download-btn-${index}').download, '${file.name}', document.getElementById('res-${index}').innerText)">Preview</button>
+            <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px;" download>Download</a>
+          </div>
         </div>
       </div>
     `;
@@ -1482,6 +1502,8 @@
       const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.65rem; padding: 2px 4px;">SSIM</span>` : '';
       weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>${ssimBadge}`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
+      const previewBtn = document.getElementById('preview-btn-' + index);
+      if (previewBtn) previewBtn.classList.remove('d-none');
     } else if (state === 'error') {
       statusContainer.classList.remove('d-none');
       statusContainer.innerHTML = `<span class="badge bg-danger status-badge">Error</span>`;
@@ -1541,5 +1563,87 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Preview Modal -->
+<div id="previewModal" role="dialog" aria-modal="true" aria-label="Image preview">
+  <div class="preview-box">
+    <button class="preview-close" id="previewClose" title="Close">&times;</button>
+    <div class="preview-panels">
+      <div class="preview-panel">
+        <div class="preview-meta" id="previewOrigLine"></div>
+        <img id="previewOrigImg" src="" alt="Original">
+      </div>
+      <div class="preview-divider"></div>
+      <div class="preview-panel">
+        <div class="preview-meta" id="previewConvLine"></div>
+        <img id="previewConvImg" src="" alt="Converted">
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const modal    = document.getElementById('previewModal');
+    const origImg  = document.getElementById('previewOrigImg');
+    const convImg  = document.getElementById('previewConvImg');
+    const origLine = document.getElementById('previewOrigLine');
+    const convLine = document.getElementById('previewConvLine');
+    const mClose   = document.getElementById('previewClose');
+
+    function getBlob(src, cb) {
+      fetch(src).then(r => r.blob()).then(b => cb(b)).catch(() => cb(null));
+    }
+
+    function fmtBytes(n) {
+      if (n == null) return '';
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    window.openPreviewModal = function (origSrc, convSrc, convName, fileName, origResText) {
+      origImg.src = origSrc;
+      convImg.src = convSrc;
+      origLine.innerHTML = '<span class="preview-label original">Original</span> ' + (fileName || '');
+      convLine.innerHTML = '<span class="preview-label converted">Converted</span> ' + (convName || '');
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+
+      getBlob(origSrc, function(b) {
+        const size = b ? fmtBytes(b.size) : '';
+        const res  = origResText || '';
+        origLine.innerHTML = '<span class="preview-label original">Original</span> '
+          + (fileName || '')
+          + (res  ? ' - ' + res  : '')
+          + (size ? ' - ' + size : '');
+      });
+
+      convImg.onload = function () {
+        const w = convImg.naturalWidth, h = convImg.naturalHeight;
+        const res = (w && h) ? `${w}×${h} px (${(w/h).toFixed(2)})` : '';
+        getBlob(convSrc, function(b) {
+          const size = b ? fmtBytes(b.size) : '';
+          convLine.innerHTML = '<span class="preview-label converted">Converted</span> '
+            + (convName || '')
+            + (res  ? ' - ' + res  : '')
+            + (size ? ' - ' + size : '');
+        });
+      };
+    };
+
+    function closeModal() {
+      modal.classList.remove('active');
+      origImg.src = '';
+      convImg.src = '';
+      origLine.innerHTML = '';
+      convLine.innerHTML = '';
+      document.body.style.overflow = '';
+    }
+
+    mClose.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+  })();
+</script>
 </body>
 </html>
