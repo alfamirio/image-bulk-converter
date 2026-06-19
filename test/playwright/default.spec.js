@@ -1,16 +1,14 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 
-test('image converter basic workflow', async ({ page }) => {
+test('default for all options', async ({ page }) => {
   // Sube dos niveles desde test/playwright/ para encontrar index.html
     await page.goto('/');
 
     await expect(page).toHaveTitle('Local Bulk Image Converter');
 
-    await page.selectOption('#formatSelect', 'image/png');
-
     // Apunta a una de tus imágenes reales en test/images/
-    const imagePath = path.resolve(__dirname, '../images/die_hard.jpg');
+    const imagePath = path.resolve(__dirname, '../images/movie.webp');
 
     // Sube el archivo al input
     await page.setInputFiles('#imageInput', imagePath);

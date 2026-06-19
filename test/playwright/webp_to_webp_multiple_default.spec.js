@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 
-test('image converter basic workflow', async ({ page }) => {
+test('default webp to webp multiple images', async ({ page }) => {
   // Sube dos niveles desde test/playwright/ para encontrar index.html
     await page.goto('/');
 
@@ -10,10 +10,11 @@ test('image converter basic workflow', async ({ page }) => {
     await page.selectOption('#formatSelect', 'image/webp');
 
     // Apunta a una de tus imágenes reales en test/images/
-    const imagePath = path.resolve(__dirname, '../images/die_hard.jpg');
+    const imagePath1 = path.resolve(__dirname, '../images/movie.webp');
+    const imagePath2 = path.resolve(__dirname, '../images/movie.jpg');
 
     // Sube el archivo al input
-    await page.setInputFiles('#imageInput', imagePath);
+    await page.setInputFiles('#imageInput', imagePath1, imagePath2);
 
     // El botón de conversión debería habilitarse
     const convertBtn = page.locator('#convertBtn');
