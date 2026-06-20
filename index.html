@@ -338,7 +338,7 @@
           <option value="3">⚠ 3 - Slow</option>
           <option value="4">⚠ 4 - Max Compression</option>
         </select>
-        <div id="speedWarning" class="d-none" style="position:absolute; top:100%; left:0; margin-top:2px; font-size:0.7rem; color:#b45309; display:flex; align-items:flex-start; gap:3px; white-space:nowrap; z-index:5;">
+        <div id="speedWarning" class="d-none" style="position:absolute; top:100%; left:0; margin-top:2px; font-size:0.7rem; color:#b45309; align-items:flex-start; gap:3px; white-space:nowrap; z-index:5;">
           <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" viewBox="0 0 16 16" style="flex-shrink:0; margin-top:1px;"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
           <span>AVIF encoding at this speed can be very slow</span>
         </div>
@@ -778,7 +778,16 @@
         downloadBtn.removeAttribute('href');
       }
       const previewBtn = document.getElementById(`preview-btn-${index}`);
-      if (previewBtn) previewBtn.classList.add('d-none');
+      if (previewBtn) {
+        // Re-clone to strip stale event listeners and dataset from any previous conversion
+        const cleanBtn = previewBtn.cloneNode(true);
+        delete cleanBtn.dataset.timeSec;
+        delete cleanBtn.dataset.weightText;
+        delete cleanBtn.dataset.isBigger;
+        delete cleanBtn.dataset.convFmt;
+        cleanBtn.classList.add('d-none');
+        previewBtn.replaceWith(cleanBtn);
+      }
     });
   }
 
@@ -845,7 +854,9 @@
     speedCol.style.opacity = noSpeed ? '0.45' : '';
 
     // Show warning when AVIF + slow preset selected
-    setVisible(speedWarning, isAvif && speedVal >= 3);
+    // Use display:flex explicitly — setVisible only toggles d-none which can't restore flex layout
+    const showWarning = isAvif && speedVal >= 3;
+    speedWarning.style.display = showWarning ? 'flex' : 'none';
   }
 
   function toggleResizeUI() {
@@ -1135,7 +1146,9 @@
           (async () => {
             try {
               const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-              const outBuf  = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
+              // Normalize mozjpeg → jpeg: canvas.toBlob doesn't recognise 'image/mozjpeg'
+              const canvasMime = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
+              const outBuf  = await encodeWithCanvas(imgData, canvasMime, rawQuality / 100);
               finalizeBatchFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
               finish(true);
             } catch { finish(false); }
@@ -1179,15 +1192,18 @@
     const workers  = Array.from({ length: poolSize }, () => new Worker(workerUrl, { type: 'module' }));
 
     // Each slot pulls jobs from the shared queue serially; all slots run in parallel
-    await Promise.all(workers.map(async (worker) => {
-      while (queue.length > 0) {
-        const job = queue.shift();
-        if (job) await runJobOnWorker(worker, job);
-      }
-    }));
-
-    workers.forEach(w => w.terminate());
-    URL.revokeObjectURL(workerUrl);
+    try {
+      await Promise.all(workers.map(async (worker) => {
+        while (queue.length > 0) {
+          const job = queue.shift();
+          if (job) await runJobOnWorker(worker, job);
+        }
+      }));
+    } finally {
+      // Always clean up — prevents blob URL leak if the queue errors mid-batch
+      workers.forEach(w => w.terminate());
+      URL.revokeObjectURL(workerUrl);
+    }
   }
 
   // ── SSIM computation ─────────────────────────────────────────────────────────
@@ -1315,8 +1331,8 @@
     link.href = url;
     link.download = zipName;
     link.click();
-    // Revoke after a tick so the browser has time to initiate the download
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    // Revoke after 100 ms — enough for browsers to start the download before the URL is freed
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 
   function encodeWithCanvas(imageData, mimeType, quality) {
@@ -1594,10 +1610,11 @@
     function fmtBytes(n) { return n == null ? '' : window.formatBytes(n); }
     function fmtBadge(nameOrMime) { return nameOrMime ? window.formatBadgeHtml(nameOrMime) : ''; }
 
-    window.openPreviewModal = function (origSrc, convSrc, convName, fileName, origResText, timeSec, weightText, isBigger, origFmt, convFmt) {
+    // origName = human-readable filename for display; origFmt = mime/ext for the format badge
+    window.openPreviewModal = function (origSrc, convSrc, convName, origName, origResText, timeSec, weightText, isBigger, origFmt, convFmt) {
       origImg.src = origSrc;
       convImg.src = convSrc;
-      origLine.innerHTML = '<span class="preview-label original">Original</span> ' + (fileName || '');
+      origLine.innerHTML = '<span class="preview-label original">Original</span> ' + (origName || '');
       convLine.innerHTML = '<span class="preview-label converted">Converted</span> ' + (convName || '');
       modal.classList.add('active');
       document.body.style.overflow = 'hidden';
@@ -1608,8 +1625,8 @@
         const res  = origResText || '';
         origLine.innerHTML =
           '<span class="preview-label original">Original</span> '
-          + fmtBadge(origFmt || fileName)
-          + ' ' + (fileName || '')
+          + fmtBadge(origFmt || origName)
+          + ' ' + (origName || '')
           + (res  ? ' - ' + res  : '')
           + (size ? ' - ' + size : '');
       });
