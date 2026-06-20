@@ -178,8 +178,31 @@
     .fmt-badge-unknown { background-color: #6c757d; }
     .fmt-arrow { font-size: 0.65rem; color: #6c757d; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; }
 
-    .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid; }
-    .stat-pill { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 500; }
+    .nav-stats-container {
+      font-size: 0.92rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: #fff;
+      padding: 0.3rem 0.75rem;
+      border-radius: 4px;
+      border: 1px solid;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .nav-stats-container .text-light    { color: #f5f6f8 !important; }
+    .nav-stats-container .text-success  { color: #4ade80 !important; }
+    .nav-stats-container .text-danger   { color: #ff6b6b !important; }
+    .nav-stats-container .text-warning  { color: #ffd43b !important; }
+    .nav-stats-container .text-info     { color: #5fd0ff !important; }
+    .nav-stats-container .text-secondary { color: #6c7280 !important; }
 
     /* ── Drag & Drop Zone ──────────────────────────────────────────────── */
     #dropZone {
@@ -293,6 +316,10 @@
       </div>
 
       <div class="nav-stats-container d-none" id="navStatsTracker">
+        <span class="stat-pill text-info" id="statSizeContainer">
+          <span id="statSizeBefore">0 B</span> - <span id="statSizeAfter">0 B</span> - <span id="statSizePercent">0%</span> <span id="statSizeDelta">(0%)</span>
+        </span>
+        <span class="text-secondary">|</span>
         <span class="stat-pill text-light" id="statRemainingContainer">Remaining: <span id="statRemaining">0</span></span>
         <span class="text-secondary">|</span>
         <span class="stat-pill text-success">Success: <span id="statSuccess">0</span></span>
@@ -629,6 +656,10 @@
   const statSuccess = document.getElementById('statSuccess');
   const statErrors = document.getElementById('statErrors');
   const statTotalTime = document.getElementById('statTotalTime');
+  const statSizeBefore = document.getElementById('statSizeBefore');
+  const statSizeAfter = document.getElementById('statSizeAfter');
+  const statSizePercent = document.getElementById('statSizePercent');
+  const statSizeDelta = document.getElementById('statSizeDelta');
 
   let selectedFiles = [];
   let convertedFiles = [];
@@ -687,6 +718,8 @@
   let globalSuccessCount = 0;
   let globalErrorCount = 0;
   let globalRemainingCount = 0;
+  let globalSizeBefore = 0;
+  let globalSizeAfter = 0;
   let statsTimerInterval = null;
   let batchStartTime = 0;
 
@@ -715,11 +748,14 @@
     globalSuccessCount = 0;
     globalErrorCount = 0;
     globalRemainingCount = totalFiles;
+    globalSizeBefore = 0;
+    globalSizeAfter = 0;
     
     statSuccess.innerText = '0';
     statErrors.innerText = '0';
     statRemaining.innerText = totalFiles;
     statTotalTime.innerText = '0.0s';
+    updateSizeStat();
     
     statRemainingContainer.classList.remove('d-none');
     navStatsTracker.classList.remove('d-none');
@@ -730,6 +766,23 @@
       const elapsed = ((performance.now() - batchStartTime) / 1000).toFixed(1);
       statTotalTime.innerText = `${elapsed}s`;
     }, 100);
+  }
+
+  // Updates the nav-bar "before - after - percentage (delta)" total size badge
+  function updateSizeStat() {
+    statSizeBefore.innerText = formatBytes(globalSizeBefore);
+    statSizeAfter.innerText = formatBytes(globalSizeAfter);
+    if (globalSizeBefore > 0) {
+      const percentage = Math.round((globalSizeAfter / globalSizeBefore) * 100);
+      const difference = percentage - 100;
+      statSizePercent.innerText = `${percentage}%`;
+      statSizeDelta.innerText = difference > 0 ? `(+${difference}%)` : `(${difference}%)`;
+      statSizeDelta.style.color = difference > 0 ? '#ff6b6b' : (difference < 0 ? '#4ade80' : '');
+    } else {
+      statSizePercent.innerText = '0%';
+      statSizeDelta.innerText = '(0%)';
+      statSizeDelta.style.color = '';
+    }
   }
 
   function incrementStat(success) {
@@ -1294,6 +1347,9 @@
         const afterColor = isBigger ? 'color:#dc3545;' : 'color:#198754;';
         memEl.innerHTML = `${formatBytes(file.size)} → <span style="${afterColor} font-weight:600;">${formatBytes(blob.size)}</span>`;
       }
+      globalSizeBefore += file.size;
+      globalSizeAfter += blob.size;
+      updateSizeStat();
       updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger, durationSec);
       if (ssimCheck.checked) computeAndShowSSIM(index, file, buffer, blobMime);
     }
