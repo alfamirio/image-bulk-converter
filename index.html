@@ -135,8 +135,8 @@
     }
 
     /* Small muted text */
-    .text-secondary, .text-muted, .img-meta { color: var(--dm-text-muted) !important; }
-    .ratio-badge { color: var(--dm-text-faint) !important; }
+    .text-secondary, .text-muted, .img-meta { color: #aab0bd !important; }
+    .ratio-badge { color: #9298a6 !important; }
 
     /* Nav stats tracker */
     .nav-stats-container {
@@ -152,8 +152,9 @@
 
     /* ── Original app styles (unchanged) ──────────────────────────────── */
     .card-img-top { height: 110px; object-fit: contain; padding: 0; margin: 0; transition: transform 0.2s ease; }
-    .status-badge { font-size: 0.75rem; }
-    .img-meta { font-size: 0.72rem; line-height: 1.3; }
+    .status-badge { font-size: 0.78rem; font-weight: 600; }
+    .img-meta { font-size: 0.8rem; line-height: 1.45; font-weight: 500; }
+    .img-meta span { color: #d4d7dd; }
     .btn-reset-nav { padding: 0.2rem 0.4rem; font-size: 0.7rem; line-height: 1; }
     .img-container { position: relative; overflow: hidden; height: 110px; display: flex; align-items: center; justify-content: center; }
     .rotate-btn { position: absolute; top: 4px; right: 4px; z-index: 10; opacity: 0.8; padding: 1px 5px; font-size: 0.75rem; }
@@ -167,16 +168,28 @@
     .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.82rem; }
     .divider-sm { margin-top: 0.5rem !important; padding-top: 0.5rem !important; }
     .navbar-text-secure { font-size: 0.8rem; }
-    .ratio-badge { font-size: 0.72rem; font-weight: normal; margin-left: 0.25rem; }
+    .ratio-badge { font-size: 0.78rem; font-weight: 600; margin-left: 0.25rem; }
 
     /* Format badges (input/output file type) */
-    .fmt-badge { font-size: 0.62rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; margin-left: 0.35rem; color: #fff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.02em; }
+    .fmt-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 3px; margin-left: 0.35rem; color: #fff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.03em; }
     .fmt-badge-jpg  { background-color: #fd7e14; }
     .fmt-badge-png  { background-color: #ffc107; color: #3a2e00; }
     .fmt-badge-webp { background-color: #0d6efd; }
-    .fmt-badge-avif { background-color: #198754; }
-    .fmt-badge-unknown { background-color: #6c757d; }
-    .fmt-arrow { font-size: 0.65rem; color: #6c757d; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; }
+    .fmt-badge-avif { background-color: #16a34a; }
+    .fmt-badge-unknown { background-color: #7c8290; }
+    .fmt-arrow { font-size: 0.72rem; color: #9298a6; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; font-weight: 700; }
+
+    /* Card title (filename) */
+    .card-title { font-size: 0.85rem !important; color: #f0f1f4 !important; }
+
+    /* Badges (status, time, weight%, SSIM) — brighter, higher-contrast fills for dark theme */
+    .badge.bg-secondary { background-color: #5b6270 !important; color: #f5f6f8 !important; }
+    .badge.bg-primary   { background-color: #3b82f6 !important; color: #fff !important; }
+    .badge.bg-success   { background-color: #16a34a !important; color: #fff !important; }
+    .badge.bg-danger    { background-color: #e0394c !important; color: #fff !important; }
+    .badge.bg-warning   { background-color: #f5b400 !important; color: #2b1f00 !important; }
+
+    #matrixContainer .badge { font-size: 0.72rem !important; font-weight: 700 !important; padding: 3px 6px !important; }
 
     .nav-stats-container {
       font-size: 0.92rem;
@@ -248,10 +261,10 @@
     #previewModal .preview-panels { display:flex; gap:10px; align-items:flex-start; width:100%; flex:1; min-height:0; }
     #previewModal .preview-panel { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; height:100%; position:relative; }
     #previewModal .preview-divider { width:1px; background:#444; align-self:stretch; margin:0 2px; flex-shrink:0; }
-    #previewModal .preview-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:2px 8px; border-radius:3px; display:inline-block; vertical-align:middle; }
+    #previewModal .preview-label { font-size:0.76rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:3px 9px; border-radius:3px; display:inline-block; vertical-align:middle; }
     #previewModal .preview-label.original { background:#495057; color:#fff; }
     #previewModal .preview-label.converted { background:#6f42c1; color:#fff; }
-    #previewModal .preview-meta { color:#999; font-size:0.72rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
+    #previewModal .preview-meta { color:#c8cad0; font-weight: 500; font-size:0.8rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
 
     /* ── Pan / Zoom ──────────────────────────────────────────────────────── */
     .pz-viewport {
@@ -1457,17 +1470,17 @@
           <img src="${URL.createObjectURL(file)}" class="card-img-top" id="preview-img-${index}" style="transform: rotate(${initialRotation}deg);">
         </div>
         <div class="card-body p-2 d-flex flex-column">
-          <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.8rem;" title="${file.name}">${file.name}</p>
-          <div class="mb-1" style="font-size:0.72rem; line-height:1.3;"><span id="fmt-badge-${index}">${formatBadgeHtml(file.name)}</span></div>
+          <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.85rem;" title="${file.name}">${file.name}</p>
+          <div class="mb-1" style="font-size:0.8rem; line-height:1.3;"><span id="fmt-badge-${index}">${formatBadgeHtml(file.name)}</span></div>
           <div class="img-meta mb-1">
             <div><span id="res-${index}">...</span></div>
             <div><span id="mem-${index}">${formatBytes(file.size)}</span></div>
           </div>
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
-          <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.7rem;"></div>
+          <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.78rem;"></div>
           <div class="d-flex gap-1 mt-1">
-            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px; background:#6f42c1; color:#fff; border:none;" data-orig-fmt="${file.name}">Preview</button>
-            <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px;" download>Download</a>
+            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none fw-semibold" style="font-size:0.8rem; padding:3px; background:#6f42c1; color:#fff; border:none;" data-orig-fmt="${file.name}">Preview</button>
+            <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none fw-semibold" style="font-size:0.8rem; padding:3px;" download>Download</a>
           </div>
         </div>
       </div>
@@ -1499,9 +1512,9 @@
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
       const badgeColor = isBigger ? 'bg-danger' : 'bg-success';
-      const timeBadge = timeSec !== null ? `<span class="badge bg-primary" style="font-size: 0.65rem; padding: 2px 4px;">${timeSec}s</span>` : '';
-      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.65rem; padding: 2px 4px;">SSIM</span>` : '';
-      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.65rem; padding: 2px 4px;">${weightText}</span>${ssimBadge}`;
+      const timeBadge = timeSec !== null ? `<span class="badge bg-primary" style="font-size: 0.74rem; font-weight: 700; padding: 3px 6px;">${timeSec}s</span>` : '';
+      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.74rem; font-weight: 700; padding: 3px 6px;">SSIM</span>` : '';
+      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.74rem; font-weight: 700; padding: 3px 6px;">${weightText}</span>${ssimBadge}`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
       const previewBtn = document.getElementById('preview-btn-' + index);
       if (previewBtn) {
