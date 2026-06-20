@@ -1,19 +1,161 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
   <title>Local Bulk Image Converter</title>
   
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   
   <style>
-    body { font-family: -apple-system, sans-serif; background: #f9f9f9; padding-bottom: 30px; }
-    .card-img-top { height: 110px; object-fit: contain; background-color: #f1f1f1; padding: 0; margin: 0; transition: transform 0.2s ease; }
+    /* ── Dark Mode (always on) ─────────────────────────────────────────── */
+    :root {
+      color-scheme: dark;
+      --dm-bg:          #111318;
+      --dm-bg-card:     #1c1f26;
+      --dm-bg-input:    #252830;
+      --dm-bg-hover:    #2a2d36;
+      --dm-border:      #343840;
+      --dm-border-soft: #2a2d36;
+      --dm-text:        #e2e4e9;
+      --dm-text-muted:  #8b8f9a;
+      --dm-text-faint:  #5a5e6a;
+      --dm-navbar:      #0d0f13;
+      --dm-navbar-border: #1f222a;
+      --dm-img-bg:      #1a1d24;
+      --dm-shadow:      0 2px 12px rgba(0,0,0,0.5);
+    }
+
+    /* Base */
+    html, body {
+      background-color: var(--dm-bg) !important;
+      color: var(--dm-text) !important;
+    }
+
+    /* Navbar */
+    .navbar.bg-dark {
+      background-color: var(--dm-navbar) !important;
+      border-bottom: 1px solid var(--dm-navbar-border) !important;
+    }
+    .navbar-brand, .navbar-text { color: var(--dm-text) !important; }
+    .navbar-text-secure { color: var(--dm-text-muted) !important; }
+
+    /* Cards */
+    .card {
+      background-color: var(--dm-bg-card) !important;
+      border-color: var(--dm-border) !important;
+      color: var(--dm-text) !important;
+      box-shadow: var(--dm-shadow) !important;
+    }
+
+    /* Form controls */
+    .form-control, .form-select, .form-control-color {
+      background-color: var(--dm-bg-input) !important;
+      border-color: var(--dm-border) !important;
+      color: var(--dm-text) !important;
+    }
+    .form-control:focus, .form-select:focus {
+      background-color: var(--dm-bg-hover) !important;
+      border-color: #4c6ef5 !important;
+      color: var(--dm-text) !important;
+      box-shadow: 0 0 0 0.2rem rgba(76,110,245,0.25) !important;
+    }
+    .form-control::placeholder { color: var(--dm-text-faint) !important; }
+    /* Fix select option visibility in dark mode */
+    .form-select option {
+      background-color: var(--dm-bg-input);
+      color: var(--dm-text);
+    }
+
+    /* Labels */
+    label, .form-label { color: var(--dm-text) !important; }
+
+    /* Border-top divider rows */
+    .border-top { border-color: var(--dm-border) !important; }
+
+    /* Buttons — outline variants need colour fixup */
+    .btn-outline-secondary {
+      color: var(--dm-text-muted) !important;
+      border-color: var(--dm-border) !important;
+    }
+    .btn-outline-secondary:hover,
+    .btn-outline-secondary.active,
+    .btn-check:checked + .btn-outline-secondary {
+      background-color: var(--dm-bg-hover) !important;
+      color: var(--dm-text) !important;
+      border-color: #4c6ef5 !important;
+    }
+    .btn-outline-primary {
+      color: #7ba4f8 !important;
+      border-color: #4c6ef5 !important;
+    }
+    .btn-outline-primary:hover { background-color: rgba(76,110,245,0.2) !important; }
+    .btn-outline-success {
+      color: #5ec97c !important;
+      border-color: #2a8f50 !important;
+    }
+    .btn-outline-success:hover { background-color: rgba(42,143,80,0.2) !important; }
+
+    /* btn-check radio toggles (watermark type group) */
+    .btn-check + .btn-outline-secondary {
+      background-color: transparent !important;
+      color: var(--dm-text-muted) !important;
+    }
+    .btn-check:checked + .btn-outline-secondary {
+      background-color: #2f3550 !important;
+      color: #7ba4f8 !important;
+      border-color: #4c6ef5 !important;
+    }
+
+    /* Form switch */
+    .form-check-input {
+      background-color: var(--dm-bg-input) !important;
+      border-color: var(--dm-border) !important;
+    }
+    .form-check-input:checked {
+      background-color: #4c6ef5 !important;
+      border-color: #4c6ef5 !important;
+    }
+    .form-check-label { color: var(--dm-text) !important; }
+
+    /* Image preview thumbnails */
+    .img-container, .card-img-top {
+      background-color: var(--dm-img-bg) !important;
+    }
+
+    /* Card body / card footer text */
+    .card-body, .card-footer {
+      background-color: var(--dm-bg-card) !important;
+      border-color: var(--dm-border) !important;
+    }
+
+    /* Small muted text */
+    .text-secondary, .text-muted, .img-meta { color: var(--dm-text-muted) !important; }
+    .ratio-badge { color: var(--dm-text-faint) !important; }
+
+    /* Nav stats tracker */
+    .nav-stats-container {
+      background: #1a1d26 !important;
+      border-color: var(--dm-border) !important;
+    }
+
+    /* Speed warning text */
+    #speedWarning { color: #e6a83a !important; }
+
+    /* Status text */
+    #status.text-secondary { color: var(--dm-text-muted) !important; }
+
+    /* Watermark divider */
+    #wmDivider { color: var(--dm-border) !important; }
+
+    /* ── Original app styles (unchanged) ──────────────────────────────── */
+    body { font-family: -apple-system, sans-serif; padding-bottom: 30px; }
+    .card-img-top { height: 110px; object-fit: contain; padding: 0; margin: 0; transition: transform 0.2s ease; }
     .status-badge { font-size: 0.75rem; }
-    .img-meta { font-size: 0.72rem; color: #666; line-height: 1.3; }
+    .img-meta { font-size: 0.72rem; line-height: 1.3; }
     .btn-reset-nav { padding: 0.2rem 0.4rem; font-size: 0.7rem; line-height: 1; }
-    .img-container { position: relative; overflow: hidden; background-color: #f1f1f1; height: 110px; display: flex; align-items: center; justify-content: center; }
+    .img-container { position: relative; overflow: hidden; height: 110px; display: flex; align-items: center; justify-content: center; }
     .rotate-btn { position: absolute; top: 4px; right: 4px; z-index: 10; opacity: 0.8; padding: 1px 5px; font-size: 0.75rem; }
     .rotate-btn:hover { opacity: 1; }
     
@@ -24,21 +166,21 @@
     .form-select-sm, .form-control-sm { font-size: 0.82rem; padding: 0.25rem 0.5rem; }
     .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.82rem; }
     .divider-sm { margin-top: 0.5rem !important; padding-top: 0.5rem !important; }
-    .navbar-text-secure { font-size: 0.8rem; color: #aaa; }
-    .ratio-badge { font-size: 0.72rem; color: #6c757d; font-weight: normal; margin-left: 0.25rem; }
+    .navbar-text-secure { font-size: 0.8rem; }
+    .ratio-badge { font-size: 0.72rem; font-weight: normal; margin-left: 0.25rem; }
 
     /* Format badges (input/output file type) */
     .fmt-badge { font-size: 0.62rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; margin-left: 0.35rem; color: #fff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.02em; }
-    .fmt-badge-jpg  { background-color: #fd7e14; } /* orange */
-    .fmt-badge-png  { background-color: #ffc107; color: #3a2e00; } /* yellow */
-    .fmt-badge-webp { background-color: #0d6efd; } /* blue */
-    .fmt-badge-avif { background-color: #198754; } /* green */
+    .fmt-badge-jpg  { background-color: #fd7e14; }
+    .fmt-badge-png  { background-color: #ffc107; color: #3a2e00; }
+    .fmt-badge-webp { background-color: #0d6efd; }
+    .fmt-badge-avif { background-color: #198754; }
     .fmt-badge-unknown { background-color: #6c757d; }
     .fmt-arrow { font-size: 0.65rem; color: #6c757d; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; }
     
     .wm-flex { display: flex !important; align-items: flex-end; gap: 0.5rem; flex-wrap: nowrap; }
 
-    .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; background: #2b3035; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid #495057; }
+    .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid; }
     .stat-pill { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 500; }
 
     /* Preview modal */
