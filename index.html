@@ -286,6 +286,10 @@
         <button class="btn btn-danger btn-reset-nav rounded" id="resetConfigBtn" title="Reset to default configuration">
           Clear Config
         </button>
+        <div class="form-check form-switch d-flex align-items-center gap-1 mb-0 ms-1" title="Fine-tune configuration">
+          <input class="form-check-input mt-0" type="checkbox" role="switch" id="fineConfigToggle">
+          <label class="form-check-label navbar-text-secure" for="fineConfigToggle" style="font-size:0.8rem; cursor:pointer;">Fine Config</label>
+        </div>
       </div>
 
       <div class="nav-stats-container d-none" id="navStatsTracker">
@@ -322,13 +326,7 @@
 
       <div class="col-md-2">
         <label for="qualitySelect" class="form-label form-label-sm fw-bold">Visual Quality</label>
-        <select class="form-select form-select-sm" id="qualitySelect">
-          <option value="max">Maximum (95%)</option>
-          <option value="high">High (80%)</option>
-          <option value="medium" selected>Medium (60%)</option>
-          <option value="low">Low (40%)</option>
-          <option value="min">Minimum (20%)</option>
-        </select>
+        <select class="form-select form-select-sm" id="qualitySelect"></select>
       </div>
 
       <div class="col-md-2" style="position:relative;">
@@ -563,27 +561,22 @@
     try {
       let outputBuffer;
       if (targetMime === 'image/avif') {
-        // cqLevel: 0 = best, 63 = worst. 5 aggressive steps starting at 20.
-        // Presets (max→min): [20, 30, 40, 52, 63]
-        const avifCqMap = { max: 10, high: 20, medium: 30, low: 40, min: 50 };
-        const cqLevel = avifCqMap[qLevel] !== undefined ? avifCqMap[qLevel] : 40;
+        // cqLevel: 0 = best, 63 = worst — values injected from QUALITY_PRESETS at runtime
+        const cqLevel = avifCqMap[qLevel] !== undefined ? avifCqMap[qLevel] : 36;
         const avifSpeedMap = [10, 8, 6, 3, 1];
         const avifSpeed = avifSpeedMap[targetEffort] !== undefined ? avifSpeedMap[targetEffort] : 6;
 
         outputBuffer = await avifCodec.encode(imageData, { cqLevel, cqAlphaLevel: -1, speed: avifSpeed });
       } else if (targetMime === 'image/webp') {
-        // WebP quality: 0 = worst, 100 = best. Aggressive spread across full range.
-        // Presets (max→min): [90, 75, 55, 30, 10]
-        const webpQualityMap = { max: 75, high: 55, medium: 40, low: 25, min: 10 };
-        const webpQuality = webpQualityMap[qLevel] !== undefined ? webpQualityMap[qLevel] : 55;
+        // WebP quality: 0 = worst, 100 = best — values injected from QUALITY_PRESETS at runtime
+        const webpQuality = webpQualityMap[qLevel] !== undefined ? webpQualityMap[qLevel] : 50;
         const webpEffortMap = [0, 1, 2, 4, 5];
         const webpEffort = webpEffortMap[targetEffort] !== undefined ? webpEffortMap[targetEffort] : 2;
 
         outputBuffer = await webpCodec.encode(imageData, { quality: webpQuality, method: webpEffort });
       } else if (targetMime === 'image/mozjpeg') {
-        // MozJPEG quality: 0 = worst, 100 = best.
-        const mozQualityMap = { max: 90, high: 75, medium: 60, low: 40, min: 20 };
-        const mozQuality = mozQualityMap[qLevel] !== undefined ? mozQualityMap[qLevel] : 60;
+        // MozJPEG quality: 0 = worst, 100 = best — values injected from QUALITY_PRESETS at runtime
+        const mozQuality = mozQualityMap[qLevel] !== undefined ? mozQualityMap[qLevel] : 52;
 
         outputBuffer = await jpegCodec.encode(imageData, { quality: mozQuality });
       } else {
@@ -625,6 +618,7 @@
   const batchFormatBtn = document.getElementById('batchFormatBtn');
   const resetConfigBtn = document.getElementById('resetConfigBtn');
   const ssimCheck = document.getElementById('ssimCheck');
+  const fineConfigToggle = document.getElementById('fineConfigToggle');
   const statusElement = document.getElementById('status');
   const matrixContainer = document.getElementById('matrixContainer');
 
@@ -639,8 +633,55 @@
   let selectedFiles = [];
   let convertedFiles = [];
   let fileRotations = {};
-  const qualityValues = { max: 95, high: 80, medium: 60, low: 40, min: 20 };
-  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false' };
+
+  // ── Single source of truth for all quality presets ────────────────────────
+  // Columns: key | label | std (shown in standard mode) | avif cqLevel (↓ = better)
+  //          | webp quality (↑) | mozjpeg quality (↑) | jpeg quality (↑)
+  const QUALITY_PRESETS = [
+    { key: 'q100', label: 'Lossless — 100%',  std: false, avif:  0, webp: 100, moz: 100, jpeg: 100 },
+    { key: 'q95', label: 'Q95 — 95%',         std: false, avif:  4, webp: 95,  moz: 95,  jpeg: 96  },
+    { key: 'q90', label: 'Maximum — 90%',      std: true,  avif:  8, webp: 90,  moz: 90,  jpeg: 92  },
+    { key: 'q85', label: 'Q85 — 85%',         std: false, avif: 12, webp: 85,  moz: 85,  jpeg: 87  },
+    { key: 'q80', label: 'High — 80%',         std: true,  avif: 16, webp: 80,  moz: 80,  jpeg: 82  },
+    { key: 'q75', label: 'Q75 — 75%',         std: false, avif: 20, webp: 75,  moz: 75,  jpeg: 78  },
+    { key: 'q70', label: 'Q70 — 70%',         std: false, avif: 24, webp: 70,  moz: 70,  jpeg: 73  },
+    { key: 'q65', label: 'Standard — 65%',     std: true,  avif: 28, webp: 65,  moz: 65,  jpeg: 68  },
+    { key: 'q60', label: 'Q60 — 60%',         std: false, avif: 32, webp: 60,  moz: 60,  jpeg: 63  },
+    { key: 'q55', label: 'Q55 — 55%',         std: false, avif: 34, webp: 55,  moz: 56,  jpeg: 59  },
+    { key: 'q50', label: 'Medium — 50%',       std: true,  avif: 36, webp: 50,  moz: 52,  jpeg: 55  },
+    { key: 'q45', label: 'Q45 — 45%',         std: false, avif: 40, webp: 45,  moz: 47,  jpeg: 50  },
+    { key: 'q40', label: 'Q40 — 40%',         std: false, avif: 43, webp: 40,  moz: 42,  jpeg: 45  },
+    { key: 'q35', label: 'Q35 — 35%',         std: false, avif: 46, webp: 35,  moz: 38,  jpeg: 41  },
+    { key: 'q30', label: 'Low — 30%',          std: true,  avif: 48, webp: 30,  moz: 35,  jpeg: 38  },
+    { key: 'q25', label: 'Q25 — 25%',         std: false, avif: 51, webp: 25,  moz: 29,  jpeg: 32  },
+    { key: 'q20', label: 'Q20 — 20%',         std: false, avif: 54, webp: 20,  moz: 23,  jpeg: 25  },
+    { key: 'q15', label: 'Min — 15%',          std: true,  avif: 56, webp: 15,  moz: 18,  jpeg: 20  },
+    { key: 'q10', label: 'Q10 — 10%',         std: false, avif: 59, webp: 10,  moz: 12,  jpeg: 14  },
+    { key: 'q05', label: 'Draft — 5%',         std: true,  avif: 62, webp:  5,  moz:  8,  jpeg: 10  },
+    { key: 'q00', label: 'Worst — 0%',         std: false, avif: 63, webp:  1,  moz:  1,  jpeg:  1  },
+  ];
+
+  // Derived lookup maps (generated from the table — do not edit directly)
+  const qualityValues    = Object.fromEntries(QUALITY_PRESETS.map(p => [p.key, p.jpeg]));
+  const avifCqMapData    = Object.fromEntries(QUALITY_PRESETS.map(p => [p.key, p.avif]));
+  const webpQualityData  = Object.fromEntries(QUALITY_PRESETS.map(p => [p.key, p.webp]));
+  const mozQualityData   = Object.fromEntries(QUALITY_PRESETS.map(p => [p.key, p.moz]));
+
+  // Select option lists derived from the table
+  const QUALITY_OPTIONS_FINE = QUALITY_PRESETS.map(p => ({ value: p.key, label: p.label }));
+  const QUALITY_OPTIONS_STD  = QUALITY_PRESETS.filter(p => p.std).map(p => ({ value: p.key, label: p.label }));
+
+  // Fallback map: fine-only key → nearest std key (next std preset downward)
+  const STD_KEYS = QUALITY_PRESETS.filter(p => p.std).map(p => p.key);
+  const FINE_TO_STD = Object.fromEntries(
+    QUALITY_PRESETS.filter(p => !p.std).map(p => {
+      const idx = QUALITY_PRESETS.findIndex(x => x.key === p.key);
+      const fallback = QUALITY_PRESETS.slice(idx + 1).find(x => x.std) || QUALITY_PRESETS.filter(x => x.std).at(-1);
+      return [p.key, fallback.key];
+    })
+  );
+
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'q50', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false', fineConfig: 'false' };
 
   // Track global execution counters
   let globalSuccessCount = 0;
@@ -750,7 +791,6 @@
 
   function loadSavedConfig() {
     formatSelect.value = localStorage.getItem('img_format') || DEFAULT_CONFIG.format;
-    qualitySelect.value = localStorage.getItem('img_quality') || DEFAULT_CONFIG.quality;
     speedSelect.value = localStorage.getItem('img_speed') || DEFAULT_CONFIG.speed;
     threadsSelect.value = localStorage.getItem('img_threads') || DEFAULT_CONFIG.threads;
     rotateAllMode.value = localStorage.getItem('img_rotateAll') || DEFAULT_CONFIG.rotateAll;
@@ -760,6 +800,11 @@
     exactHeight.value = localStorage.getItem('img_exactH') || DEFAULT_CONFIG.exactH;
     exactFitting.value = localStorage.getItem('img_exactFit') || DEFAULT_CONFIG.exactFit;
     ssimCheck.checked = (localStorage.getItem('img_ssim') ?? DEFAULT_CONFIG.ssim) !== 'false';
+    fineConfigToggle.checked = (localStorage.getItem('img_fineConfig') ?? DEFAULT_CONFIG.fineConfig) !== 'false';
+
+    // Quality select is empty until toggleFineQualityOptions populates it;
+    // pass the saved value so it can set the correct option after rendering.
+    toggleFineQualityOptions(localStorage.getItem('img_quality') || DEFAULT_CONFIG.quality);
 
     toggleResizeUI();
     updateExactRatioText();
@@ -777,7 +822,17 @@
     localStorage.setItem('img_exactH', exactHeight.value);
     localStorage.setItem('img_exactFit', exactFitting.value);
     localStorage.setItem('img_ssim', ssimCheck.checked ? 'true' : 'false');
+    localStorage.setItem('img_fineConfig', fineConfigToggle.checked ? 'true' : 'false');
 
+  }
+
+  function toggleQualityUI() {
+    const fmt = formatSelect.value;
+    const isPng = fmt === 'image/png';
+    const qualityCol = qualitySelect.closest('.col-md-2');
+    qualitySelect.disabled = isPng;
+    qualityCol.style.opacity = isPng ? '0.45' : '';
+    qualityCol.title = isPng ? 'Quality has no effect for PNG (lossless)' : '';
   }
 
   function toggleSpeedUI() {
@@ -822,11 +877,27 @@
     }
   }
 
+  function toggleFineQualityOptions(targetValue) {
+    const isFine = fineConfigToggle.checked;
+    const current = targetValue !== undefined ? targetValue : qualitySelect.value;
+    const opts = isFine ? QUALITY_OPTIONS_FINE : QUALITY_OPTIONS_STD;
+    qualitySelect.innerHTML = opts.map(o =>
+      `<option value="${o.value}">${o.label}</option>`
+    ).join('');
+    // Restore selection; if the current value no longer exists fall back to nearest or q50
+    if (opts.some(o => o.value === current)) {
+      qualitySelect.value = current;
+    } else {
+      qualitySelect.value = FINE_TO_STD[current] || 'q50';
+    }
+  }
+
   loadSavedConfig();
   toggleSpeedUI();
+  toggleQualityUI();
   
   // Menu configuration change hooks
-  formatSelect.addEventListener('change', () => { toggleSpeedUI(); saveConfig(); resetConversionState(); });
+  formatSelect.addEventListener('change', () => { toggleSpeedUI(); toggleQualityUI(); saveConfig(); resetConversionState(); });
   qualitySelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
   speedSelect.addEventListener('change', () => { toggleSpeedUI(); saveConfig(); resetConversionState(); });
   threadsSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
@@ -836,6 +907,7 @@
   exactFitting.addEventListener('change', () => { saveConfig(); resetConversionState(); });
   
   ssimCheck.addEventListener('change', () => { saveConfig(); });
+  fineConfigToggle.addEventListener('change', () => { toggleFineQualityOptions(); saveConfig(); });
   rotateAllMode.addEventListener('change', () => {
     applyGlobalRotation();
     saveConfig();
@@ -990,7 +1062,7 @@
     const targetW = parseInt(exactWidth.value, 10);
     const targetH = parseInt(exactHeight.value, 10);
     const strategyFit = exactFitting.value;
-    const presets = ['max', 'high', 'medium', 'low', 'min'];
+    const presets = ['q90', 'q80', 'q50', 'q30', 'q15'];
 
     const jobs = [];
     selectedFiles.forEach((file, index) => {
@@ -1064,7 +1136,13 @@
 
   // ── Shared queue runner ─────────────────────────────────────────────────────
   async function runConversionQueue(jobs, maxThreads, onProgress = null) {
-    const workerCode = document.getElementById('worker-script').textContent;
+    // Prepend the codec quality maps (derived from QUALITY_PRESETS) into the worker
+    const codecMaps = `
+      const avifCqMap   = ${JSON.stringify(avifCqMapData)};
+      const webpQualityMap  = ${JSON.stringify(webpQualityData)};
+      const mozQualityMap   = ${JSON.stringify(mozQualityData)};
+    `;
+    const workerCode = codecMaps + document.getElementById('worker-script').textContent;
     const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(workerBlob);
     let doneCount = 0;
@@ -1686,7 +1764,7 @@
         // Map cursor to orig viewport
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
-        const delta = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+        const delta = 1 - e.deltaY * 0.001;
         zoomAt(scale * delta, px, py);
       }, { passive: false });
     });
