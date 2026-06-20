@@ -36,6 +36,8 @@
     body {
       display: flex;
       flex-direction: column;
+      font-family: -apple-system, sans-serif;
+      padding-bottom: 30px;
     }
     .container.mt-2 {
       flex: 1;
@@ -149,7 +151,6 @@
     #status.text-secondary { color: var(--dm-text-muted) !important; }
 
     /* ── Original app styles (unchanged) ──────────────────────────────── */
-    body { font-family: -apple-system, sans-serif; padding-bottom: 30px; }
     .card-img-top { height: 110px; object-fit: contain; padding: 0; margin: 0; transition: transform 0.2s ease; }
     .status-badge { font-size: 0.75rem; }
     .img-meta { font-size: 0.72rem; line-height: 1.3; }
@@ -222,7 +223,7 @@
     #previewModal .preview-close { position:absolute; top:-13px; right:-13px; width:28px; height:28px; border-radius:50%; background:#6f42c1; border:none; color:#fff; font-size:1.1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.5); flex-shrink:0; z-index:1; }
     #previewModal .preview-close:hover { background:#5a2ea0; }
     #previewModal .preview-panels { display:flex; gap:10px; align-items:flex-start; width:100%; flex:1; min-height:0; }
-    #previewModal .preview-panel { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; height:100%; }
+    #previewModal .preview-panel { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; height:100%; position:relative; }
     #previewModal .preview-divider { width:1px; background:#444; align-self:stretch; margin:0 2px; flex-shrink:0; }
     #previewModal .preview-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:2px 8px; border-radius:3px; display:inline-block; vertical-align:middle; }
     #previewModal .preview-label.original { background:#495057; color:#fff; }
@@ -230,7 +231,6 @@
     #previewModal .preview-meta { color:#999; font-size:0.72rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
 
     /* ── Pan / Zoom ──────────────────────────────────────────────────────── */
-    #previewModal .preview-panel { position: relative; }
     .pz-viewport {
       flex: 1; min-height: 0; width: 100%;
       overflow: hidden; position: relative;
@@ -658,7 +658,7 @@
     { key: 'q15', label: 'Min — 15%',          std: true,  avif: 56, webp: 15,  moz: 18,  jpeg: 20  },
     { key: 'q10', label: 'Q10 — 10%',         std: false, avif: 59, webp: 10,  moz: 12,  jpeg: 14  },
     { key: 'q05', label: 'Draft — 5%',         std: true,  avif: 62, webp:  5,  moz:  8,  jpeg: 10  },
-    { key: 'q00', label: 'Worst — 0%',         std: false, avif: 63, webp:  1,  moz:  1,  jpeg:  1  },
+    { key: 'q00', label: 'Worst — 0%',         std: false, avif: 63, webp:  0,  moz:  0,  jpeg:  1  },
   ];
 
   // Derived lookup maps (generated from the table — do not edit directly)
@@ -732,17 +732,10 @@
     }, 100);
   }
 
-  function incrementStatSuccess() {
-    globalSuccessCount++;
+  function incrementStat(success) {
+    if (success) { globalSuccessCount++; statSuccess.innerText = globalSuccessCount; }
+    else         { globalErrorCount++;   statErrors.innerText  = globalErrorCount;   }
     globalRemainingCount--;
-    statSuccess.innerText = globalSuccessCount;
-    statRemaining.innerText = globalRemainingCount;
-  }
-
-  function incrementStatError() {
-    globalErrorCount++;
-    globalRemainingCount--;
-    statErrors.innerText = globalErrorCount;
     statRemaining.innerText = globalRemainingCount;
   }
 
@@ -826,6 +819,10 @@
 
   }
 
+  function setVisible(el, visible) {
+    el.classList.toggle('d-none', !visible);
+  }
+
   function toggleQualityUI() {
     const fmt = formatSelect.value;
     const isPng = fmt === 'image/png';
@@ -848,13 +845,7 @@
     speedCol.style.opacity = noSpeed ? '0.45' : '';
 
     // Show warning when AVIF + slow preset selected
-    if (isAvif && speedVal >= 3) {
-      speedWarning.classList.remove('d-none');
-      speedWarning.style.display = 'flex';
-    } else {
-      speedWarning.classList.add('d-none');
-      speedWarning.style.display = '';
-    }
+    setVisible(speedWarning, isAvif && speedVal >= 3);
   }
 
   function toggleResizeUI() {
@@ -931,11 +922,7 @@
   const dropZone = document.getElementById('dropZone');
 
   function updateDropZoneUI() {
-    if (selectedFiles.length > 0) {
-      dropZone.style.display = 'none';
-    } else {
-      dropZone.style.display = '';
-    }
+    dropZone.classList.toggle('d-none', selectedFiles.length > 0);
   }
 
   function handleFiles(files) {
@@ -953,9 +940,7 @@
     });
 
     selectedFiles = filtered;
-    convertBtn.disabled = selectedFiles.length === 0;
-    batchQualityBtn.disabled = selectedFiles.length === 0;
-    batchFormatBtn.disabled = selectedFiles.length === 0;
+    setUIBusy(false);
     downloadZipBtn.classList.add('d-none');
     navStatsTracker.classList.add('d-none');
     convertedFiles = [];
@@ -991,47 +976,33 @@
 
   updateDropZoneUI();
 
-  imageInput.addEventListener('change', (e) => {
-    // Revoke existing preview URLs before clearing
-    selectedFiles.forEach((_, index) => {
-      const imgEl = document.getElementById(`preview-img-${index}`);
-      if (imgEl && imgEl.src && imgEl.src.startsWith('blob:')) URL.revokeObjectURL(imgEl.src);
-      const downloadBtn = document.getElementById(`download-btn-${index}`);
-      if (downloadBtn && downloadBtn.href && downloadBtn.href.startsWith('blob:')) URL.revokeObjectURL(downloadBtn.href);
-    });
+  imageInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
-    selectedFiles = Array.from(e.target.files);
-    convertBtn.disabled = selectedFiles.length === 0;
-    batchQualityBtn.disabled = selectedFiles.length === 0;
-    batchFormatBtn.disabled = selectedFiles.length === 0;
-    downloadZipBtn.classList.add('d-none');
-    navStatsTracker.classList.add('d-none');
-    convertedFiles = [];
-    fileRotations = {};
-    matrixContainer.innerHTML = '';
-    
-    const globalAngle = parseInt(rotateAllMode.value, 10);
-    selectedFiles.forEach((file, index) => {
-      fileRotations[index] = globalAngle;
-      createImageCard(file, index, globalAngle);
-    });
+  // ── Shared helpers for button handlers ────────────────────────────────────
+  function mimeToExt(mime) {
+    if (mime === 'image/mozjpeg') return 'jpg';
+    return mime.split('/')[1].replace('jpeg', 'jpg');
+  }
 
-    updateDropZoneUI();
-  });
+  function getConversionParams() {
+    return {
+      targetEffort: parseInt(speedSelect.value, 10),
+      maxThreads:   parseInt(threadsSelect.value, 10),
+      modeResize:   resizeMode.value,
+      valResize:    parseFloat(resizeValue.value),
+      targetW:      parseInt(exactWidth.value, 10),
+      targetH:      parseInt(exactHeight.value, 10),
+      strategyFit:  exactFitting.value,
+    };
+  }
 
   convertBtn.addEventListener('click', async () => {
     if (selectedFiles.length === 0) return;
     const targetMime = formatSelect.value;
-    const targetExt = targetMime === 'image/mozjpeg' ? 'jpg' : targetMime.split('/')[1].replace('jpeg', 'jpg');
-    const qLevel = qualitySelect.value;
+    const targetExt  = mimeToExt(targetMime);
+    const qLevel     = qualitySelect.value;
     const rawQuality = qualityValues[qLevel];
-    const targetEffort = parseInt(speedSelect.value, 10);
-    const maxThreads = parseInt(threadsSelect.value, 10);
-    const modeResize = resizeMode.value;
-    const valResize = parseFloat(resizeValue.value);
-    const targetW = parseInt(exactWidth.value, 10);
-    const targetH = parseInt(exactHeight.value, 10);
-    const strategyFit = exactFitting.value;
+    const { targetEffort, maxThreads, modeResize, valResize, targetW, targetH, strategyFit } = getConversionParams();
 
     const jobs = selectedFiles.map((file, index) => ({
       file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
@@ -1050,25 +1021,19 @@
     if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
   });
 
-  // ── Batch Quality: all 5 quality presets × current format ──────────────────
+  // ── Batch Quality: all std quality presets × current format ────────────────
   batchQualityBtn.addEventListener('click', async () => {
     if (selectedFiles.length === 0) return;
     const targetMime = formatSelect.value;
-    const targetExt = targetMime === 'image/mozjpeg' ? 'jpg' : targetMime.split('/')[1].replace('jpeg', 'jpg');
-    const targetEffort = parseInt(speedSelect.value, 10);
-    const maxThreads = parseInt(threadsSelect.value, 10);
-    const modeResize = resizeMode.value;
-    const valResize = parseFloat(resizeValue.value);
-    const targetW = parseInt(exactWidth.value, 10);
-    const targetH = parseInt(exactHeight.value, 10);
-    const strategyFit = exactFitting.value;
+    const targetExt  = mimeToExt(targetMime);
+    const { targetEffort, maxThreads, modeResize, valResize, targetW, targetH, strategyFit } = getConversionParams();
     const presets = ['q90', 'q80', 'q50', 'q30', 'q15'];
 
     const jobs = [];
     selectedFiles.forEach((file, index) => {
       presets.forEach(qLevel => {
         const rawQuality = qualityValues[qLevel];
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const baseName   = file.name.substring(0, file.name.lastIndexOf('.'));
         const outputName = `${baseName}-${qLevel}.${targetExt}`;
         jobs.push({
           file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
@@ -1089,18 +1054,12 @@
     if (convertedFiles.length > 0) await triggerBatchZip('batch_qualities.zip');
   });
 
-  // ── Batch Format: all 5 formats × current quality ──────────────────────────
+  // ── Batch Format: all formats × current quality ────────────────────────────
   batchFormatBtn.addEventListener('click', async () => {
     if (selectedFiles.length === 0) return;
-    const qLevel = qualitySelect.value;
+    const qLevel     = qualitySelect.value;
     const rawQuality = qualityValues[qLevel];
-    const targetEffort = parseInt(speedSelect.value, 10);
-    const maxThreads = parseInt(threadsSelect.value, 10);
-    const modeResize = resizeMode.value;
-    const valResize = parseFloat(resizeValue.value);
-    const targetW = parseInt(exactWidth.value, 10);
-    const targetH = parseInt(exactHeight.value, 10);
-    const strategyFit = exactFitting.value;
+    const { targetEffort, maxThreads, modeResize, valResize, targetW, targetH, strategyFit } = getConversionParams();
 
     const formats = [
       { mime: 'image/webp',    ext: 'webp', label: 'webp'    },
@@ -1113,7 +1072,7 @@
     const jobs = [];
     selectedFiles.forEach((file, index) => {
       formats.forEach(({ mime, ext, label }) => {
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const baseName   = file.name.substring(0, file.name.lastIndexOf('.'));
         const outputName = `${baseName}-${label}.${ext}`;
         jobs.push({
           file, index, targetMime: mime, targetExt: ext, qLevel, rawQuality, targetEffort,
@@ -1171,7 +1130,7 @@
             doneCount++;
             if (onProgress) onProgress(doneCount, total);
             if (updateCard) { success ? null : updateCardStatus(index, 'error'); }
-            if (updateCard) { success ? incrementStatSuccess() : incrementStatError(); }
+            if (updateCard) incrementStat(success);
             active--;
             launchNext();
           };
@@ -1227,23 +1186,15 @@
   }
 
   // ── SSIM computation ─────────────────────────────────────────────────────────
-  async function getImageDataFromFile(file) {
-    const bitmap = await createImageBitmap(file, { colorSpaceConversion: 'none' });
-    const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width; canvas.height = bitmap.height;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0);
-    bitmap.close();
-    return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-  }
-
-  async function getImageDataFromBuffer(buffer, mimeType) {
-    const blob = new Blob([buffer], { type: mimeType });
+  async function getImageData(source, mimeType) {
+    const blob = source instanceof Blob ? source : new Blob([source], { type: mimeType });
     const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
     const canvas = document.createElement('canvas');
     canvas.width = bitmap.width; canvas.height = bitmap.height;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
     bitmap.close();
-    return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
   async function computeAndShowSSIM(index, origFile, outBuffer, outMime) {
@@ -1253,8 +1204,8 @@
     ssimBadge.textContent = '…';
     try {
       const [origData, outData] = await Promise.all([
-        getImageDataFromFile(origFile),
-        getImageDataFromBuffer(outBuffer, outMime)
+        getImageData(origFile),
+        getImageData(outBuffer, outMime)
       ]);
 
       const score = window.computeSSIM(origData, outData);
@@ -1323,16 +1274,8 @@
         memEl.innerHTML = `${formatBytes(file.size)} → <span style="${afterColor} font-weight:600;">${formatBytes(blob.size)}</span>`;
       }
       updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger, durationSec);
-      if (ssimCheck.checked) {
-        const blobMimeForSsim = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
-        computeAndShowSSIM(index, file, buffer, blobMimeForSsim);
-      }
+      if (ssimCheck.checked) computeAndShowSSIM(index, file, buffer, blobMime);
     }
-  }
-
-  // keep old finalizeFile working (used nowhere else now, but just in case)
-  function finalizeFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime) {
-    finalizeBatchFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime, true, null);
   }
 
   // ── Batch helpers ───────────────────────────────────────────────────────────
@@ -1362,10 +1305,13 @@
     const zip = new JSZip();
     convertedFiles.forEach(f => zip.file(f.name, f.blob));
     const zipContent = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipContent);
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(zipContent);
+    link.href = url;
     link.download = zipName;
     link.click();
+    // Revoke after a tick so the browser has time to initiate the download
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   function encodeWithCanvas(imageData, mimeType, quality) {
@@ -1385,6 +1331,8 @@
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   }
+  // Expose to non-module scripts (modal)
+  window.formatBytes = formatBytes;
 
   // ── Format badge helpers (input/output file type pill) ──────────────────────
   function normalizeFormatKey(mimeOrExtOrName) {
@@ -1404,10 +1352,10 @@
     const label = key === 'unknown' ? '?' : key;
     return `<span class="fmt-badge fmt-badge-${key}">${label}</span>`;
   }
+  // Expose to non-module scripts (modal)
+  window.formatBadgeHtml = formatBadgeHtml;
 
   function formatBadgePairHtml(fromMimeOrExtOrName, toMimeOrExtOrName) {
-    const fromKey = normalizeFormatKey(fromMimeOrExtOrName);
-    const toKey = normalizeFormatKey(toMimeOrExtOrName);
     return `${formatBadgeHtml(fromMimeOrExtOrName)}<span class="fmt-arrow">&rarr;</span>${formatBadgeHtml(toMimeOrExtOrName)}`;
   }
 
@@ -1441,7 +1389,7 @@
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
           <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.7rem;"></div>
           <div class="d-flex gap-1 mt-1">
-            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px; background:#6f42c1; color:#fff; border:none;" onclick="openPreviewModal(document.getElementById('preview-img-${index}').src, document.getElementById('download-btn-${index}').href, document.getElementById('download-btn-${index}').download, '${file.name}', document.getElementById('res-${index}').innerText, this.dataset.timeSec, this.dataset.weightText, this.dataset.isBigger === 'true', this.dataset.origFmt, this.dataset.convFmt)" data-orig-fmt="${file.name}">Preview</button>
+            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px; background:#6f42c1; color:#fff; border:none;" data-orig-fmt="${file.name}">Preview</button>
             <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none" style="font-size:0.75rem; padding:2px;" download>Download</a>
           </div>
         </div>
@@ -1484,7 +1432,27 @@
         previewBtn.dataset.weightText = weightText;
         previewBtn.dataset.isBigger = isBigger ? 'true' : 'false';
         if (fileName) previewBtn.dataset.convFmt = fileName;
-        previewBtn.classList.remove('d-none');
+        // Replace any previous click handler, then attach a clean one
+        previewBtn.replaceWith(previewBtn.cloneNode(true));
+        const freshBtn = document.getElementById('preview-btn-' + index);
+        freshBtn.classList.remove('d-none');
+        freshBtn.addEventListener('click', () => {
+          const origImg  = document.getElementById(`preview-img-${index}`);
+          const dlBtn    = document.getElementById(`download-btn-${index}`);
+          const resEl    = document.getElementById(`res-${index}`);
+          openPreviewModal(
+            origImg.src,
+            dlBtn.href,
+            dlBtn.download,
+            freshBtn.dataset.origFmt,
+            resEl ? resEl.innerText : '',
+            freshBtn.dataset.timeSec,
+            freshBtn.dataset.weightText,
+            freshBtn.dataset.isBigger === 'true',
+            freshBtn.dataset.origFmt,
+            freshBtn.dataset.convFmt
+          );
+        });
       }
     } else if (state === 'error') {
       statusContainer.classList.remove('d-none');
@@ -1617,24 +1585,9 @@
       fetch(src).then(r => r.blob()).then(b => cb(b)).catch(() => cb(null));
     }
 
-    function fmtBytes(n) {
-      if (n == null) return '';
-      if (n < 1024) return n + ' B';
-      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-      return (n / (1024 * 1024)).toFixed(2) + ' MB';
-    }
-
-    function fmtBadge(nameOrMime) {
-      if (!nameOrMime) return '';
-      let s = nameOrMime.toLowerCase();
-      if (s.includes('/')) s = s.split('/')[1];
-      if (s.includes('.')) s = s.substring(s.lastIndexOf('.') + 1);
-      if (s === 'mozjpeg' || s === 'jpeg') s = 'jpg';
-      const colors = { jpg: '#fd7e14', png: '#ffc107', webp: '#0d6efd', avif: '#198754' };
-      const bg = colors[s] || '#6c757d';
-      const textColor = s === 'png' ? '#3a2e00' : '#fff';
-      return `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:${bg};color:${textColor};text-transform:uppercase;letter-spacing:0.03em;vertical-align:middle;">${s}</span>`;
-    }
+    // Reuse shared helpers exposed by the module script
+    function fmtBytes(n) { return n == null ? '' : window.formatBytes(n); }
+    function fmtBadge(nameOrMime) { return nameOrMime ? window.formatBadgeHtml(nameOrMime) : ''; }
 
     window.openPreviewModal = function (origSrc, convSrc, convName, fileName, origResText, timeSec, weightText, isBigger, origFmt, convFmt) {
       origImg.src = origSrc;
