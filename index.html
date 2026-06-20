@@ -1095,7 +1095,7 @@
 
   // ── Shared queue runner ─────────────────────────────────────────────────────
   async function runConversionQueue(jobs, maxThreads, onProgress = null) {
-    // Prepend the codec quality maps (derived from QUALITY_PRESETS) into the worker
+    // Build the worker blob once per batch — WASM codecs load once per worker, not per job
     const codecMaps = `
       const avifCqMap   = ${JSON.stringify(avifCqMapData)};
       const webpQualityMap  = ${JSON.stringify(webpQualityData)};
@@ -1104,84 +1104,89 @@
     const workerCode = codecMaps + document.getElementById('worker-script').textContent;
     const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(workerBlob);
+
     let doneCount = 0;
     const total = jobs.length;
+    const queue = [...jobs];
 
-    await new Promise((resolve) => {
-      const queue = [...jobs];
-      let active = 0;
+    // Run a single job on a reusable worker; resolves when the job finishes
+    // so the pool loop can immediately hand the same worker its next job.
+    function runJobOnWorker(worker, job) {
+      return new Promise((resolveJob) => {
+        const { file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
+                modeResize, valResize, targetW, targetH, strategyFit,
+                updateCard, outputName } = job;
 
-      function launchNext() {
-        if (queue.length === 0 && active === 0) { resolve(); return; }
+        if (updateCard) updateCardStatus(index, 'processing');
+        const imageStartTime = performance.now();
+        const rotation = fileRotations[index] || 0;
+        const isNativeTarget = targetMime === 'image/png' || targetMime === 'image/jpeg';
 
-        while (active < maxThreads && queue.length > 0) {
-          const job = queue.shift();
-          const { file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
-                  modeResize, valResize, targetW, targetH, strategyFit,
-                  updateCard, outputName } = job;
-          active++;
+        const finish = (success) => {
+          doneCount++;
+          if (onProgress) onProgress(doneCount, total);
+          if (updateCard && !success) updateCardStatus(index, 'error');
+          if (updateCard) incrementStat(success);
+          resolveJob();
+        };
 
-          if (updateCard) updateCardStatus(index, 'processing');
-          const imageStartTime = performance.now();
-          const rotation = fileRotations[index] || 0;
-          const isNativeTarget = targetMime === 'image/png' || targetMime === 'image/jpeg';
-
-          const onDone = (success) => {
-            doneCount++;
-            if (onProgress) onProgress(doneCount, total);
-            if (updateCard) { success ? null : updateCardStatus(index, 'error'); }
-            if (updateCard) incrementStat(success);
-            active--;
-            launchNext();
-          };
-
-          if (isNativeTarget) {
-            (async () => {
-              try {
-                const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                const outBuf = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
-                finalizeBatchFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
-                onDone(true);
-              } catch {
-                onDone(false);
-              }
-            })();
-            continue;
-          }
-
-          const worker = new Worker(workerUrl, { type: 'module' });
-          const cleanupWorker = (success) => { worker.terminate(); onDone(success); };
-
-          worker.onmessage = async (e) => {
-            const msg = e.data;
-            if (msg.type === 'NEED_CANVAS_DECODE') {
-              try {
-                const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-                worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
-              } catch { updateCardStatus(index, 'error'); cleanupWorker(false); }
-            } else if (msg.type === 'NEED_CANVAS_ENCODE') {
-              try {
-                const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
-                finalizeBatchFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
-                cleanupWorker(true);
-              } catch { cleanupWorker(false); }
-            } else if (msg.type === 'SUCCESS') {
-              finalizeBatchFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
-              cleanupWorker(true);
-            } else if (msg.type === 'ERROR') {
-              if (updateCard) updateCardStatus(index, 'error');
-              cleanupWorker(false);
-            }
-          };
-
-          file.arrayBuffer().then(buf => {
-            worker.postMessage({ arrayBuffer: buf, fileType: file.type, fileName: file.name, targetMime, rawQuality, targetEffort, index, qLevel, rotation, resizeMode: modeResize }, [buf]);
-          }).catch(() => cleanupWorker(false));
+        // PNG/JPEG go straight through the main-thread canvas path — no worker needed
+        if (isNativeTarget) {
+          (async () => {
+            try {
+              const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
+              const outBuf  = await encodeWithCanvas(imgData, targetMime, rawQuality / 100);
+              finalizeBatchFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
+              finish(true);
+            } catch { finish(false); }
+          })();
+          return;
         }
-      }
-      launchNext();
-    });
 
+        worker.onmessage = async (e) => {
+          const msg = e.data;
+          if (msg.type === 'NEED_CANVAS_DECODE') {
+            try {
+              const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
+              worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
+            } catch { if (updateCard) updateCardStatus(index, 'error'); finish(false); }
+          } else if (msg.type === 'NEED_CANVAS_ENCODE') {
+            try {
+              const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
+              finalizeBatchFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
+              finish(true);
+            } catch { finish(false); }
+          } else if (msg.type === 'SUCCESS') {
+            finalizeBatchFile(msg.outputBuffer, msg.width, msg.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
+            finish(true);
+          } else if (msg.type === 'ERROR') {
+            if (updateCard) updateCardStatus(index, 'error');
+            finish(false);
+          }
+        };
+
+        file.arrayBuffer()
+          .then(buf => worker.postMessage(
+            { arrayBuffer: buf, fileType: file.type, fileName: file.name, targetMime, rawQuality, targetEffort, index, qLevel, rotation, resizeMode: modeResize },
+            [buf]
+          ))
+          .catch(() => finish(false));
+      });
+    }
+
+    // Create a fixed pool — capped at job count so no idle workers are spawned
+    const poolSize = Math.min(maxThreads, total);
+    const workers  = Array.from({ length: poolSize }, () => new Worker(workerUrl, { type: 'module' }));
+
+    // Each slot pulls jobs from the shared queue serially; all slots run in parallel
+    await Promise.all(workers.map(async (worker) => {
+      while (queue.length > 0) {
+        const job = queue.shift();
+        if (job) await runJobOnWorker(worker, job);
+      }
+    }));
+
+    workers.forEach(w => w.terminate());
     URL.revokeObjectURL(workerUrl);
   }
 
