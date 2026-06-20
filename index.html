@@ -97,17 +97,6 @@
     }
     .btn-outline-success:hover { background-color: rgba(42,143,80,0.2) !important; }
 
-    /* btn-check radio toggles (watermark type group) */
-    .btn-check + .btn-outline-secondary {
-      background-color: transparent !important;
-      color: var(--dm-text-muted) !important;
-    }
-    .btn-check:checked + .btn-outline-secondary {
-      background-color: #2f3550 !important;
-      color: #7ba4f8 !important;
-      border-color: #4c6ef5 !important;
-    }
-
     /* Form switch */
     .form-check-input {
       background-color: var(--dm-bg-input) !important;
@@ -146,9 +135,6 @@
     /* Status text */
     #status.text-secondary { color: var(--dm-text-muted) !important; }
 
-    /* Watermark divider */
-    #wmDivider { color: var(--dm-border) !important; }
-
     /* ── Original app styles (unchanged) ──────────────────────────────── */
     body { font-family: -apple-system, sans-serif; padding-bottom: 30px; }
     .card-img-top { height: 110px; object-fit: contain; padding: 0; margin: 0; transition: transform 0.2s ease; }
@@ -177,8 +163,6 @@
     .fmt-badge-avif { background-color: #198754; }
     .fmt-badge-unknown { background-color: #6c757d; }
     .fmt-arrow { font-size: 0.65rem; color: #6c757d; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; }
-    
-    .wm-flex { display: flex !important; align-items: flex-end; gap: 0.5rem; flex-wrap: nowrap; }
 
     .nav-stats-container { font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid; }
     .stat-pill { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 500; }
@@ -388,113 +372,6 @@
       </div>
     </div>
 
-    <!-- Watermark row (single line, options appear inline to the right of the type toggle) -->
-    <div class="row compact-row border-top divider-sm align-items-end flex-nowrap" id="watermarkRow" style="overflow-x:auto;">
-
-      <!-- Type toggle -->
-      <div class="col-auto m-0" style="flex-shrink:0;">
-        <label class="form-label form-label-sm fw-bold d-block">Watermark</label>
-        <div class="btn-group btn-group-sm" role="group">
-          <input type="radio" class="btn-check" name="wmType" id="wmTypeNone" value="none" checked>
-          <label class="btn btn-outline-secondary" for="wmTypeNone">None</label>
-          <input type="radio" class="btn-check" name="wmType" id="wmTypeText" value="text">
-          <label class="btn btn-outline-secondary" for="wmTypeText">Text</label>
-          <input type="radio" class="btn-check" name="wmType" id="wmTypeImage" value="image">
-          <label class="btn btn-outline-secondary" for="wmTypeImage">Image</label>
-        </div>
-      </div>
-
-      <!-- Shared options (opacity, repeat, position, angle) — hidden when None -->
-      <div class="col-auto m-0 d-none" id="wmSharedOpts">
-        <div>
-          <label for="wmOpacity" class="form-label form-label-sm fw-bold">Opacity</label>
-          <select class="form-select form-select-sm" id="wmOpacity" style="width:78px;">
-            <option value="1.0">100%</option>
-            <option value="0.75" selected>75%</option>
-            <option value="0.5">50%</option>
-            <option value="0.25">25%</option>
-            <option value="0.1">10%</option>
-          </select>
-        </div>
-        <div>
-          <label for="wmRepeat" class="form-label form-label-sm fw-bold">Repeat</label>
-          <select class="form-select form-select-sm" id="wmRepeat" style="width:100px;">
-            <option value="single">Single</option>
-            <option value="tiled" selected>Tiled</option>
-          </select>
-        </div>
-        <div id="wmPositionWrap">
-          <label for="wmPosition" class="form-label form-label-sm fw-bold">Position</label>
-          <select class="form-select form-select-sm" id="wmPosition" style="width:120px;">
-            <option value="bottom-right" selected>Bottom Right</option>
-            <option value="bottom-left">Bottom Left</option>
-            <option value="top-right">Top Right</option>
-            <option value="top-left">Top Left</option>
-            <option value="center">Center</option>
-          </select>
-        </div>
-        <div>
-          <label for="wmAngle" class="form-label form-label-sm fw-bold">Angle</label>
-          <select class="form-select form-select-sm" id="wmAngle" style="width:78px;">
-            <option value="0">0°</option>
-            <option value="-45" selected>−45°</option>
-            <option value="45">+45°</option>
-            <option value="90">90°</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Divider between shared and type-specific -->
-      <div class="col-auto m-0 d-none px-1" id="wmDivider" style="color:#dee2e6; font-size:1.2rem; line-height:29px; align-self:flex-end;">|</div>
-
-      <!-- Text-specific options -->
-      <div class="col-auto m-0 d-none" id="wmTextOpts">
-        <div>
-          <label for="wmText" class="form-label form-label-sm fw-bold">Text</label>
-          <input type="text" class="form-control form-control-sm" id="wmText" placeholder="© My Brand" style="width:140px;">
-        </div>
-        <div>
-          <label for="wmFontSize" class="form-label form-label-sm fw-bold">Size</label>
-          <input type="number" class="form-control form-control-sm" id="wmFontSize" value="24" min="6" max="200" style="width:58px;">
-        </div>
-        <div>
-          <label for="wmFontFamily" class="form-label form-label-sm fw-bold">Font</label>
-          <select class="form-select form-select-sm" id="wmFontFamily" style="width:115px;">
-            <option value="sans-serif" selected>Sans-serif</option>
-            <option value="serif">Serif</option>
-            <option value="monospace">Monospace</option>
-            <option value="cursive">Cursive</option>
-          </select>
-        </div>
-        <div>
-          <label for="wmTextColor" class="form-label form-label-sm fw-bold">Color</label>
-          <input type="color" class="form-control form-control-color form-control-sm p-0" id="wmTextColor" value="#c0c0c0" style="width:36px; height:29px;">
-        </div>
-      </div>
-
-      <!-- Image-specific options -->
-      <div class="col-auto m-0 d-none" id="wmImageOpts">
-        <div>
-          <label for="wmImageFile" class="form-label form-label-sm fw-bold">PNG File</label>
-          <input type="file" class="form-control form-control-sm" id="wmImageFile" accept="image/png" style="width:180px;">
-        </div>
-        <div>
-          <label for="wmImageScale" class="form-label form-label-sm fw-bold">Scale (%)</label>
-          <input type="number" class="form-control form-control-sm" id="wmImageScale" value="20" min="1" max="100" style="width:65px;">
-        </div>
-        <div id="wmImageFitWrap">
-          <label for="wmImageFit" class="form-label form-label-sm fw-bold">Fit</label>
-          <select class="form-select form-select-sm" id="wmImageFit" style="width:110px;">
-            <option value="original" selected>Original</option>
-            <option value="fit-width">Fit Width</option>
-            <option value="fit-height">Fit Height</option>
-            <option value="contain">Contain</option>
-          </select>
-        </div>
-      </div>
-
-    </div><!-- /watermarkRow -->
-
     <div id="status" class="mt-2 text-center small text-secondary"></div>
   </div>
 
@@ -587,7 +464,7 @@
   import * as jpegCodec from "https://esm.sh/@jsquash/jpeg@1.4.0";
 
   self.onmessage = async (e) => {
-    const { type, arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel, rotation, imageData, resizeMode, hasWatermark } = e.data;
+    const { type, arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel, rotation, imageData, resizeMode } = e.data;
     
     try {
       if (type === 'CONTINUE_ENCODE') {
@@ -596,12 +473,11 @@
       }
 
       // Always use canvas decode when rotation or resize is needed,
-      // or when the source is a native browser format (JPEG/PNG),
-      // or when a watermark needs to be applied (must happen on main thread).
+      // or when the source is a native browser format (JPEG/PNG).
       const needsTransform = (rotation > 0 || resizeMode !== 'none');
       const isNativeSource = fileType === 'image/jpeg' || fileType === 'image/png' || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png');
 
-      if (needsTransform || isNativeSource || hasWatermark) {
+      if (needsTransform || isNativeSource) {
         self.postMessage({ type: 'NEED_CANVAS_DECODE', index });
         return;
       }
@@ -704,7 +580,7 @@
   let convertedFiles = [];
   let fileRotations = {};
   const qualityValues = { max: 95, high: 80, medium: 60, low: 40, min: 20 };
-  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false', wmType: 'none', wmOpacity: '0.75', wmRepeat: 'tiled', wmPosition: 'bottom-right', wmAngle: '-45', wmText: '', wmFontSize: '24', wmFontFamily: 'sans-serif', wmTextColor: '#c0c0c0' };
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'medium', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false' };
 
   // Track global execution counters
   let globalSuccessCount = 0;
@@ -825,19 +701,6 @@
     exactFitting.value = localStorage.getItem('img_exactFit') || DEFAULT_CONFIG.exactFit;
     ssimCheck.checked = (localStorage.getItem('img_ssim') ?? DEFAULT_CONFIG.ssim) !== 'false';
 
-    // Watermark
-    const wmType = localStorage.getItem('wm_type') || DEFAULT_CONFIG.wmType;
-    const wmRadio = document.querySelector(`input[name="wmType"][value="${wmType}"]`);
-    if (wmRadio) wmRadio.checked = true;
-    document.getElementById('wmOpacity').value        = localStorage.getItem('wm_opacity')         || DEFAULT_CONFIG.wmOpacity;
-    document.getElementById('wmRepeat').value         = localStorage.getItem('wm_repeat')          || DEFAULT_CONFIG.wmRepeat;
-    document.getElementById('wmPosition').value       = localStorage.getItem('wm_position')        || DEFAULT_CONFIG.wmPosition;
-    document.getElementById('wmAngle').value          = localStorage.getItem('wm_angle')           || DEFAULT_CONFIG.wmAngle;
-    document.getElementById('wmText').value           = localStorage.getItem('wm_text')            || DEFAULT_CONFIG.wmText;
-    document.getElementById('wmFontSize').value       = localStorage.getItem('wm_fontSize')        || DEFAULT_CONFIG.wmFontSize;
-    document.getElementById('wmFontFamily').value     = localStorage.getItem('wm_fontFamily')      || DEFAULT_CONFIG.wmFontFamily;
-    document.getElementById('wmTextColor').value      = localStorage.getItem('wm_textColor')       || DEFAULT_CONFIG.wmTextColor;
-
     toggleResizeUI();
     updateExactRatioText();
   }
@@ -855,16 +718,6 @@
     localStorage.setItem('img_exactFit', exactFitting.value);
     localStorage.setItem('img_ssim', ssimCheck.checked ? 'true' : 'false');
 
-    // Watermark
-    localStorage.setItem('wm_type',            document.querySelector('input[name="wmType"]:checked')?.value || 'none');
-    localStorage.setItem('wm_opacity',         document.getElementById('wmOpacity').value);
-    localStorage.setItem('wm_repeat',          document.getElementById('wmRepeat').value);
-    localStorage.setItem('wm_position',        document.getElementById('wmPosition').value);
-    localStorage.setItem('wm_angle',           document.getElementById('wmAngle').value);
-    localStorage.setItem('wm_text',            document.getElementById('wmText').value);
-    localStorage.setItem('wm_fontSize',        document.getElementById('wmFontSize').value);
-    localStorage.setItem('wm_fontFamily',      document.getElementById('wmFontFamily').value);
-    localStorage.setItem('wm_textColor',       document.getElementById('wmTextColor').value);
   }
 
   function toggleSpeedUI() {
@@ -1145,28 +998,7 @@
               } catch { updateCardStatus(index, 'error'); cleanupWorker(false); }
             } else if (msg.type === 'NEED_CANVAS_ENCODE') {
               try {
-                // Apply watermark onto the decoded imageData before native encode
-                const wmCfgEnc = getWatermarkConfig();
-                let imgDataToEncode = msg.imageData;
-                if (wmCfgEnc && wmCfgEnc.type === 'text') {
-                  const tmpCanvas = document.createElement('canvas');
-                  tmpCanvas.width  = imgDataToEncode.width;
-                  tmpCanvas.height = imgDataToEncode.height;
-                  const tmpCtx = tmpCanvas.getContext('2d');
-                  tmpCtx.putImageData(imgDataToEncode, 0, 0);
-                  applyTextWatermark(tmpCtx, tmpCanvas.width, tmpCanvas.height, wmCfgEnc);
-                  imgDataToEncode = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
-                }
-                if (wmCfgEnc && wmCfgEnc.type === 'image') {
-                  const tmpCanvas = document.createElement('canvas');
-                  tmpCanvas.width  = imgDataToEncode.width;
-                  tmpCanvas.height = imgDataToEncode.height;
-                  const tmpCtx = tmpCanvas.getContext('2d');
-                  tmpCtx.putImageData(imgDataToEncode, 0, 0);
-                  applyImageWatermark(tmpCtx, tmpCanvas.width, tmpCanvas.height, wmCfgEnc);
-                  imgDataToEncode = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
-                }
-                const outBuf = await encodeWithCanvas(imgDataToEncode, targetMime, rawQuality / 100);
+                const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
                 finalizeBatchFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
                 cleanupWorker(true);
               } catch { cleanupWorker(false); }
@@ -1179,9 +1011,8 @@
             }
           };
 
-          const hasWatermark = getWatermarkConfig() !== null;
           file.arrayBuffer().then(buf => {
-            worker.postMessage({ arrayBuffer: buf, fileType: file.type, fileName: file.name, targetMime, rawQuality, targetEffort, index, qLevel, rotation, resizeMode: modeResize, hasWatermark }, [buf]);
+            worker.postMessage({ arrayBuffer: buf, fileType: file.type, fileName: file.name, targetMime, rawQuality, targetEffort, index, qLevel, rotation, resizeMode: modeResize }, [buf]);
           }).catch(() => cleanupWorker(false));
         }
       }
@@ -1333,243 +1164,6 @@
     link.click();
   }
 
-  function decodeResizeRotateCanvas(file, rotation, mode, val, targetW, targetH, strategy) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      img.onload = () => {
-        const isSidelong = rotation === 90 || rotation === 270;
-        const rotatedW = isSidelong ? img.naturalHeight : img.naturalWidth;
-        const rotatedH = isSidelong ? img.naturalWidth : img.naturalHeight;
-
-        let canvasW = rotatedW;
-        let canvasH = rotatedH;
-
-        if (mode === 'scale') {
-          canvasW = Math.max(1, Math.round(rotatedW * (val / 100)));
-          canvasH = Math.max(1, Math.round(rotatedH * (val / 100)));
-        } else if (mode === 'width' && rotatedW > val) {
-          canvasW = val;
-          canvasH = Math.max(1, Math.round((val / rotatedW) * rotatedH));
-        } else if (mode === 'height' && rotatedH > val) {
-          canvasH = val;
-          canvasW = Math.max(1, Math.round((val / rotatedH) * rotatedW));
-        } else if (mode === 'exact') {
-          if (strategy === 'fit') {
-            const scale = Math.min(targetW / rotatedW, targetH / rotatedH);
-            canvasW = Math.max(1, Math.round(rotatedW * scale));
-            canvasH = Math.max(1, Math.round(rotatedH * scale));
-          } else {
-            canvasW = targetW;
-            canvasH = targetH;
-          }
-        }
-
-        const rCanvas = document.createElement('canvas');
-        rCanvas.width = rotatedW;
-        rCanvas.height = rotatedH;
-        const rCtx = rCanvas.getContext('2d');
-        rCtx.translate(rotatedW / 2, rotatedH / 2);
-        rCtx.rotate((rotation * Math.PI) / 180);
-        rCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-
-        const fCanvas = document.createElement('canvas');
-        fCanvas.width = canvasW;
-        fCanvas.height = canvasH;
-        const fCtx = fCanvas.getContext('2d');
-
-        if (mode === 'exact' && strategy === 'fill') {
-          const scale = Math.max(targetW / rotatedW, targetH / rotatedH);
-          const sw = targetW / scale;
-          const sh = targetH / scale;
-          const sx = (rotatedW - sw) / 2;
-          const sy = (rotatedH - sh) / 2;
-          fCtx.drawImage(rCanvas, sx, sy, sw, sh, 0, 0, targetW, targetH);
-        } else {
-          fCtx.drawImage(rCanvas, 0, 0, rotatedW, rotatedH, 0, 0, canvasW, canvasH);
-        }
-
-        // ── Apply watermark ───────────────────────────────────────────────────
-        const wmCfg = getWatermarkConfig();
-        if (wmCfg && wmCfg.type === 'text')  applyTextWatermark(fCtx, canvasW, canvasH, wmCfg);
-        if (wmCfg && wmCfg.type === 'image') applyImageWatermark(fCtx, canvasW, canvasH, wmCfg);
-
-        resolve(fCtx.getImageData(0, 0, canvasW, canvasH));
-        // Revoke after resolve so the browser has finished reading the image
-        setTimeout(() => URL.revokeObjectURL(img.src), 0);
-      };
-      img.onerror = (e) => reject(new Error('Image load failed: ' + (e?.message || 'unknown')));
-    });
-  }
-
-  // ── Watermark helpers ────────────────────────────────────────────────────────
-
-  function getWatermarkConfig() {
-    const type = document.querySelector('input[name="wmType"]:checked')?.value || 'none';
-    if (type === 'none') return null;
-
-    const opacity  = parseFloat(document.getElementById('wmOpacity').value);
-    const repeat   = document.getElementById('wmRepeat').value;
-    const position = document.getElementById('wmPosition').value;
-    const angle    = parseFloat(document.getElementById('wmAngle').value);
-
-    if (type === 'text') {
-      const text        = document.getElementById('wmText').value.trim();
-      if (!text) return null;
-      const fontSize    = parseInt(document.getElementById('wmFontSize').value, 10) || 24;
-      const fontFamily  = document.getElementById('wmFontFamily').value;
-      const color       = document.getElementById('wmTextColor').value;
-      return { type, opacity, repeat, position, angle, text, fontSize, fontFamily, color };
-    }
-
-    if (type === 'image') {
-      if (!wmImageBitmap) return null;
-      const scale = parseFloat(document.getElementById('wmImageScale').value) / 100 || 0.2;
-      const fit   = document.getElementById('wmImageFit').value;
-      return { type, opacity, repeat, position, angle, scale, fit, bitmap: wmImageBitmap };
-    }
-
-    return null;
-  }
-
-  // ── Image watermark bitmap cache ─────────────────────────────────────────────
-  let wmImageBitmap = null;
-
-  document.getElementById('wmImageFile').addEventListener('change', async (e) => {
-    if (wmImageBitmap) { wmImageBitmap.close(); wmImageBitmap = null; }
-    const file = e.target.files[0];
-    if (!file) return;
-    wmImageBitmap = await createImageBitmap(file);
-  });
-
-  /**
-   * Draw a text watermark on a 2D canvas context.
-   * @param {CanvasRenderingContext2D} ctx
-   * @param {number} cw  - canvas width
-   * @param {number} ch  - canvas height
-   * @param {object} cfg - result of getWatermarkConfig()
-   */
-  function applyTextWatermark(ctx, cw, ch, cfg) {
-    const { opacity, repeat, position, angle, text, fontSize, fontFamily, color } = cfg;
-
-    ctx.save();
-    ctx.globalAlpha = opacity;
-    ctx.font = `${fontSize}px ${fontFamily}`;
-    ctx.fillStyle = color;
-
-    const metrics = ctx.measureText(text);
-    const textW   = metrics.width;
-    const textH   = fontSize;
-    const PAD     = Math.max(10, fontSize * 0.5);   // space around each stamp
-    const padX    = Math.max(6, fontSize * 0.3);    // extra breathing room left/right of text
-    const padY    = Math.max(4, fontSize * 0.2);    // extra breathing room above/below text
-
-    function drawAt(x, y, rotAngle) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate((rotAngle * Math.PI) / 180);
-      ctx.fillText(text, -(textW / 2) - padX, (textH / 2) + padY);
-      ctx.restore();
-    }
-
-    if (repeat === 'tiled') {
-      const stepX = textW + padX * 2 + PAD * 3;
-      const stepY = textH + padY * 2 + PAD * 2;
-      const cols  = Math.ceil(cw / stepX) + 2;
-      const rows  = Math.ceil(ch / stepY) + 2;
-      for (let r = -1; r < rows; r++) {
-        for (let c = -1; c < cols; c++) {
-          const cx = c * stepX + (r % 2 === 0 ? 0 : stepX / 2);
-          const cy = r * stepY;
-          drawAt(cx, cy, angle);
-        }
-      }
-    } else {
-      // single: place at the chosen position corner
-      let x, y;
-      switch (position) {
-        case 'top-left':     x = PAD + textW / 2;          y = PAD + textH / 2;          break;
-        case 'top-right':    x = cw - PAD - textW / 2;     y = PAD + textH / 2;          break;
-        case 'bottom-left':  x = PAD + textW / 2;          y = ch - PAD - textH / 2;     break;
-        case 'center':       x = cw / 2;                   y = ch / 2;                   break;
-        case 'bottom-right':
-        default:             x = cw - PAD - textW / 2;     y = ch - PAD - textH / 2;     break;
-      }
-      drawAt(x, y, angle);
-    }
-
-    ctx.restore();
-  }
-
-  /**
-   * Draw an image watermark on a 2D canvas context.
-   */
-  function applyImageWatermark(ctx, cw, ch, cfg) {
-    const { opacity, repeat, position, angle, scale, fit, bitmap } = cfg;
-    const PAD = 10;
-
-    // Compute stamp dimensions based on fit mode
-    let stampW, stampH;
-    if (fit === 'fit-width') {
-      stampW = cw * scale;
-      stampH = bitmap.height * (stampW / bitmap.width);
-    } else if (fit === 'fit-height') {
-      stampH = ch * scale;
-      stampW = bitmap.width * (stampH / bitmap.height);
-    } else if (fit === 'contain') {
-      const s = Math.min(cw * scale / bitmap.width, ch * scale / bitmap.height);
-      stampW = bitmap.width * s;
-      stampH = bitmap.height * s;
-    } else {
-      // original: scale is a percentage of the canvas shorter side
-      const base = Math.min(cw, ch) * scale;
-      const s = base / Math.max(bitmap.width, bitmap.height);
-      stampW = bitmap.width * s;
-      stampH = bitmap.height * s;
-    }
-    stampW = Math.max(1, Math.round(stampW));
-    stampH = Math.max(1, Math.round(stampH));
-
-    ctx.save();
-    ctx.globalAlpha = opacity;
-
-    function drawAt(x, y, rotAngle) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate((rotAngle * Math.PI) / 180);
-      ctx.drawImage(bitmap, -stampW / 2, -stampH / 2, stampW, stampH);
-      ctx.restore();
-    }
-
-    if (repeat === 'tiled') {
-      const stepX = stampW + PAD * 4;
-      const stepY = stampH + PAD * 3;
-      const cols  = Math.ceil(cw / stepX) + 2;
-      const rows  = Math.ceil(ch / stepY) + 2;
-      for (let r = -1; r < rows; r++) {
-        for (let c = -1; c < cols; c++) {
-          const cx = c * stepX + (r % 2 === 0 ? 0 : stepX / 2);
-          const cy = r * stepY;
-          drawAt(cx, cy, angle);
-        }
-      }
-    } else {
-      // single
-      let x, y;
-      switch (position) {
-        case 'top-left':     x = PAD + stampW / 2;      y = PAD + stampH / 2;      break;
-        case 'top-right':    x = cw - PAD - stampW / 2; y = PAD + stampH / 2;      break;
-        case 'bottom-left':  x = PAD + stampW / 2;      y = ch - PAD - stampH / 2; break;
-        case 'center':       x = cw / 2;                y = ch / 2;                break;
-        case 'bottom-right':
-        default:             x = cw - PAD - stampW / 2; y = ch - PAD - stampH / 2; break;
-      }
-      drawAt(x, y, angle);
-    }
-
-    ctx.restore();
-  }
-
   function encodeWithCanvas(imageData, mimeType, quality) {
     return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
@@ -1592,8 +1186,8 @@
   function normalizeFormatKey(mimeOrExtOrName) {
     if (!mimeOrExtOrName) return 'unknown';
     let s = mimeOrExtOrName.toLowerCase();
-    if (s.includes('/')) s = s.split('/')[1];      // mime type -> subtype
-    if (s.includes('.')) s = s.substring(s.lastIndexOf('.') + 1); // filename -> ext
+    if (s.includes('/')) s = s.split('/')[1];
+    if (s.includes('.')) s = s.substring(s.lastIndexOf('.') + 1);
     if (s === 'jpg' || s === 'jpeg' || s === 'mozjpeg') return 'jpg';
     if (s === 'png') return 'png';
     if (s === 'webp') return 'webp';
@@ -1694,51 +1288,70 @@
     }
   }
 
-  // ── Watermark UI toggles ────────────────────────────────────────────────────
-  (function () {
-    const radios          = document.querySelectorAll('input[name="wmType"]');
-    const sharedOpts      = document.getElementById('wmSharedOpts');
-    const divider         = document.getElementById('wmDivider');
-    const textOpts        = document.getElementById('wmTextOpts');
-    const imageOpts       = document.getElementById('wmImageOpts');
-    const positionWrap    = document.getElementById('wmPositionWrap');
-    const imageFitWrap    = document.getElementById('wmImageFitWrap');
-    const wmRepeat        = document.getElementById('wmRepeat');
+  function decodeResizeRotateCanvas(file, rotation, mode, val, targetW, targetH, strategy) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const isSidelong = rotation === 90 || rotation === 270;
+        const rotatedW = isSidelong ? img.naturalHeight : img.naturalWidth;
+        const rotatedH = isSidelong ? img.naturalWidth : img.naturalHeight;
 
-    function show(el) { el.classList.remove('d-none'); el.classList.add('wm-flex'); }
-    function hide(el) { el.classList.add('d-none');    el.classList.remove('wm-flex'); }
+        let canvasW = rotatedW;
+        let canvasH = rotatedH;
 
-    function applyWmType() {
-      const val = document.querySelector('input[name="wmType"]:checked').value;
-      if (val === 'none') {
-        hide(sharedOpts); hide(divider); hide(textOpts); hide(imageOpts);
-      } else if (val === 'text') {
-        show(sharedOpts); show(divider); show(textOpts); hide(imageOpts);
-      } else if (val === 'image') {
-        show(sharedOpts); show(divider); hide(textOpts); show(imageOpts);
-      }
-      syncRepeatDependents();
-    }
+        if (mode === 'scale') {
+          canvasW = Math.max(1, Math.round(rotatedW * (val / 100)));
+          canvasH = Math.max(1, Math.round(rotatedH * (val / 100)));
+        } else if (mode === 'width' && rotatedW > val) {
+          canvasW = val;
+          canvasH = Math.max(1, Math.round((val / rotatedW) * rotatedH));
+        } else if (mode === 'height' && rotatedH > val) {
+          canvasH = val;
+          canvasW = Math.max(1, Math.round((val / rotatedH) * rotatedW));
+        } else if (mode === 'exact') {
+          if (strategy === 'fit') {
+            const scale = Math.min(targetW / rotatedW, targetH / rotatedH);
+            canvasW = Math.max(1, Math.round(rotatedW * scale));
+            canvasH = Math.max(1, Math.round(rotatedH * scale));
+          } else {
+            canvasW = targetW;
+            canvasH = targetH;
+          }
+        }
 
-    function syncRepeatDependents() {
-      const tiled = wmRepeat.value === 'tiled';
-      positionWrap.classList.toggle('d-none', tiled);
-      imageFitWrap.classList.toggle('d-none', tiled);
-    }
+        const rCanvas = document.createElement('canvas');
+        rCanvas.width = rotatedW;
+        rCanvas.height = rotatedH;
+        const rCtx = rCanvas.getContext('2d');
+        rCtx.translate(rotatedW / 2, rotatedH / 2);
+        rCtx.rotate((rotation * Math.PI) / 180);
+        rCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
 
-    radios.forEach(r => r.addEventListener('change', () => { applyWmType(); saveConfig(); }));
-    wmRepeat.addEventListener('change', () => { syncRepeatDependents(); saveConfig(); });
+        const fCanvas = document.createElement('canvas');
+        fCanvas.width = canvasW;
+        fCanvas.height = canvasH;
+        const fCtx = fCanvas.getContext('2d');
 
-    // Save on any watermark field change
-    ['wmOpacity','wmPosition','wmAngle','wmFontSize','wmFontFamily'].forEach(id => {
-      document.getElementById(id).addEventListener('change', saveConfig);
+        if (mode === 'exact' && strategy === 'fill') {
+          const scale = Math.max(targetW / rotatedW, targetH / rotatedH);
+          const sw = targetW / scale;
+          const sh = targetH / scale;
+          const sx = (rotatedW - sw) / 2;
+          const sy = (rotatedH - sh) / 2;
+          fCtx.drawImage(rCanvas, sx, sy, sw, sh, 0, 0, targetW, targetH);
+        } else {
+          fCtx.drawImage(rCanvas, 0, 0, rotatedW, rotatedH, 0, 0, canvasW, canvasH);
+        }
+
+        resolve(fCtx.getImageData(0, 0, canvasW, canvasH));
+        // Revoke after resolve so the browser has finished reading the image
+        setTimeout(() => URL.revokeObjectURL(img.src), 0);
+      };
+      img.onerror = (e) => reject(new Error('Image load failed: ' + (e?.message || 'unknown')));
     });
-    document.getElementById('wmText').addEventListener('input', saveConfig);
-    document.getElementById('wmTextColor').addEventListener('input', saveConfig);
+  }
 
-    // Run once on init to apply correct initial state
-    applyWmType();
-  })();
 
   downloadZipBtn.addEventListener('click', async () => {
     if (convertedFiles.length === 0) return;
