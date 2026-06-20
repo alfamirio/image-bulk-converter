@@ -1804,8 +1804,7 @@
     [viewOrig, viewConv].forEach(view => {
       view.addEventListener('wheel', function (e) {
         e.preventDefault();
-        const rect = viewOrig.getBoundingClientRect(); // always use orig as reference
-        // Map cursor to orig viewport
+        const rect = view.getBoundingClientRect(); // use the panel the cursor is actually over
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
         const delta = 1 - e.deltaY * 0.001;
@@ -1880,7 +1879,7 @@
         if (e.touches.length === 2) {
           const dist = touchDist(e.touches);
           const [mx, my] = touchMid(e.touches);
-          const rect = viewOrig.getBoundingClientRect();
+          const rect = view.getBoundingClientRect();
           const px = mx - rect.left, py = my - rect.top;
           zoomAt(scale * (dist / lastTouchDist), px, py);
           lastTouchDist = dist;
@@ -1900,7 +1899,7 @@
     // Double-click: toggle fit ↔ 2×
     [viewOrig, viewConv].forEach(view => {
       view.addEventListener('dblclick', function (e) {
-        const rect = viewOrig.getBoundingClientRect();
+        const rect = view.getBoundingClientRect();
         const px = e.clientX - rect.left, py = e.clientY - rect.top;
         if (scale > 1.05) { pzReset(); }
         else { zoomAt(2, px, py); }
