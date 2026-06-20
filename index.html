@@ -191,12 +191,48 @@
     #previewModal .preview-close:hover { background:#5a2ea0; }
     #previewModal .preview-panels { display:flex; gap:10px; align-items:flex-start; width:100%; flex:1; min-height:0; }
     #previewModal .preview-panel { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; height:100%; }
-    #previewModal .preview-panel img { width:100%; flex:1; min-height:0; object-fit:contain; border-radius:4px; border:1px solid #333; display:block; background:#111; }
     #previewModal .preview-divider { width:1px; background:#444; align-self:stretch; margin:0 2px; flex-shrink:0; }
     #previewModal .preview-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:2px 8px; border-radius:3px; display:inline-block; vertical-align:middle; }
     #previewModal .preview-label.original { background:#495057; color:#fff; }
     #previewModal .preview-label.converted { background:#6f42c1; color:#fff; }
     #previewModal .preview-meta { color:#999; font-size:0.72rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
+
+    /* ── Pan / Zoom ──────────────────────────────────────────────────────── */
+    #previewModal .preview-panel { position: relative; }
+    .pz-viewport {
+      flex: 1; min-height: 0; width: 100%;
+      overflow: hidden; position: relative;
+      border-radius: 4px; border: 1px solid #333; background: #111;
+      cursor: grab;
+    }
+    .pz-viewport.dragging { cursor: grabbing; }
+    .pz-img {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      transform-origin: 0 0;
+      will-change: transform;
+      user-select: none; pointer-events: none;
+    }
+    /* Zoom controls bar */
+    .pz-controls {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      z-index: 20; display: flex; align-items: center; gap: 4px;
+      background: rgba(20,20,28,0.88); border: 1px solid #444;
+      border-radius: 8px; padding: 3px 6px;
+      backdrop-filter: blur(6px);
+    }
+    .pz-btn {
+      background: none; border: none; color: #ccc; cursor: pointer;
+      width: 22px; height: 22px; border-radius: 4px; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, color 0.12s;
+    }
+    .pz-btn:hover { background: rgba(76,110,245,0.4); color: #fff; }
+    .pz-label {
+      font-size: 0.68rem; color: #aaa; min-width: 32px; text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -1717,15 +1753,37 @@
   <div class="preview-box">
     <button class="preview-close" id="previewClose" title="Close">&times;</button>
     <div class="preview-panels">
-      <div class="preview-panel">
+
+      <!-- Original panel -->
+      <div class="preview-panel" id="previewPanelOrig">
         <div class="preview-meta" id="previewOrigLine"></div>
-        <img id="previewOrigImg" src="" alt="Original">
+        <div class="pz-viewport" id="pzViewOrig">
+          <img id="previewOrigImg" class="pz-img" src="" alt="Original">
+          <div class="pz-controls">
+            <button class="pz-btn" id="pzOutBtn" title="Zoom out (−)">−</button>
+            <span class="pz-label" id="pzLabel">100%</span>
+            <button class="pz-btn" id="pzInBtn"  title="Zoom in (+)">+</button>
+            <button class="pz-btn" id="pzResetBtn" title="Reset (0)" style="font-size:0.6rem;width:28px;">↺</button>
+          </div>
+        </div>
       </div>
+
       <div class="preview-divider"></div>
-      <div class="preview-panel">
+
+      <!-- Converted panel -->
+      <div class="preview-panel" id="previewPanelConv">
         <div class="preview-meta" id="previewConvLine"></div>
-        <img id="previewConvImg" src="" alt="Converted">
+        <div class="pz-viewport" id="pzViewConv">
+          <img id="previewConvImg" class="pz-img" src="" alt="Converted">
+          <!-- mirrored controls (read-only display) -->
+          <div class="pz-controls" style="pointer-events:none;">
+            <span style="width:22px;height:22px;"></span>
+            <span class="pz-label" id="pzLabelConv">100%</span>
+            <span style="width:22px;height:22px;"></span>
+          </div>
+        </div>
       </div>
+
     </div>
   </div>
 </div>
@@ -1768,6 +1826,7 @@
       convLine.innerHTML = '<span class="preview-label converted">Converted</span> ' + (convName || '');
       modal.classList.add('active');
       document.body.style.overflow = 'hidden';
+      pzReset();
 
       getBlob(origSrc, function(b) {
         const size = b ? fmtBytes(b.size) : '';
@@ -1811,11 +1870,201 @@
       origLine.innerHTML = '';
       convLine.innerHTML = '';
       document.body.style.overflow = '';
+      pzReset();
     }
 
     mClose.addEventListener('click', closeModal);
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+    // ── Synchronized Pan & Zoom ────────────────────────────────────────────
+    const MIN_SCALE = 1, MAX_SCALE = 16;
+    const ZOOM_STEP = 1.25;
+
+    // Shared transform state (normalised: offset is fraction of viewport size)
+    let scale  = 1;
+    let tx = 0, ty = 0;   // translate in viewport pixels at scale=1 equivalent
+
+    const viewOrig  = document.getElementById('pzViewOrig');
+    const viewConv  = document.getElementById('pzViewConv');
+    const imgOrig   = origImg;
+    const imgConv   = convImg;
+    const pzLabel   = document.getElementById('pzLabel');
+    const pzLabelC  = document.getElementById('pzLabelConv');
+    const pzInBtn   = document.getElementById('pzInBtn');
+    const pzOutBtn  = document.getElementById('pzOutBtn');
+    const pzResetBtn= document.getElementById('pzResetBtn');
+
+    function clampTx(s, vw, vh) {
+      // Keep image on screen: allow panning only as far as the scaled image edges
+      const imgW = vw * s;
+      const imgH = vh * s;
+      const maxTx = 0;
+      const minTx = Math.min(0, vw - imgW);
+      const maxTy = 0;
+      const minTy = Math.min(0, vh - imgH);
+      return [
+        Math.min(maxTx, Math.max(minTx, tx)),
+        Math.min(maxTy, Math.max(minTy, ty))
+      ];
+    }
+
+    function applyTransform(animated) {
+      const vw = viewOrig.clientWidth;
+      const vh = viewOrig.clientHeight;
+      [tx, ty] = clampTx(scale, vw, vh);
+
+      const t = `matrix(${scale},0,0,${scale},${tx},${ty})`;
+      imgOrig.style.transform = t;
+      imgConv.style.transform = t;
+
+      const pct = Math.round(scale * 100) + '%';
+      pzLabel.textContent  = pct;
+      pzLabelC.textContent = pct;
+    }
+
+    function pzReset() {
+      scale = 1; tx = 0; ty = 0;
+      applyTransform();
+    }
+
+    function zoomAt(newScale, pivotX, pivotY) {
+      // pivotX/Y are in viewport coordinates (relative to viewOrig)
+      newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
+      // Adjust tx/ty so the point under the pivot stays fixed
+      const ratio = newScale / scale;
+      tx = pivotX - ratio * (pivotX - tx);
+      ty = pivotY - ratio * (pivotY - ty);
+      scale = newScale;
+      applyTransform();
+    }
+
+    // Wheel zoom — zoom toward cursor, sync both images
+    [viewOrig, viewConv].forEach(view => {
+      view.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        const rect = viewOrig.getBoundingClientRect(); // always use orig as reference
+        // Map cursor to orig viewport
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const delta = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+        zoomAt(scale * delta, px, py);
+      }, { passive: false });
+    });
+
+    // Drag to pan
+    let dragging = false, dragStartX = 0, dragStartY = 0, dragTx = 0, dragTy = 0;
+
+    function onDragStart(e) {
+      if (scale <= 1) return;
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragTx = tx; dragTy = ty;
+      viewOrig.classList.add('dragging');
+      viewConv.classList.add('dragging');
+      e.preventDefault();
+    }
+
+    function onDragMove(e) {
+      if (!dragging) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      tx = dragTx + dx;
+      ty = dragTy + dy;
+      applyTransform();
+    }
+
+    function onDragEnd() {
+      if (!dragging) return;
+      dragging = false;
+      viewOrig.classList.remove('dragging');
+      viewConv.classList.remove('dragging');
+    }
+
+    [viewOrig, viewConv].forEach(view => {
+      view.addEventListener('mousedown', onDragStart);
+    });
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup',   onDragEnd);
+
+    // Touch support
+    let lastTouchDist = null, lastTouchMidX = 0, lastTouchMidY = 0;
+    let touchPanStartX = 0, touchPanStartY = 0, touchPanTx = 0, touchPanTy = 0;
+
+    function touchMid(touches) {
+      const t0 = touches[0], t1 = touches[1];
+      return [(t0.clientX + t1.clientX) / 2, (t0.clientY + t1.clientY) / 2];
+    }
+    function touchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    [viewOrig, viewConv].forEach(view => {
+      view.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 2) {
+          lastTouchDist = touchDist(e.touches);
+          [lastTouchMidX, lastTouchMidY] = touchMid(e.touches);
+          e.preventDefault();
+        } else if (e.touches.length === 1) {
+          touchPanStartX = e.touches[0].clientX;
+          touchPanStartY = e.touches[0].clientY;
+          touchPanTx = tx; touchPanTy = ty;
+        }
+      }, { passive: false });
+
+      view.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 2) {
+          const dist = touchDist(e.touches);
+          const [mx, my] = touchMid(e.touches);
+          const rect = viewOrig.getBoundingClientRect();
+          const px = mx - rect.left, py = my - rect.top;
+          zoomAt(scale * (dist / lastTouchDist), px, py);
+          lastTouchDist = dist;
+          lastTouchMidX = mx; lastTouchMidY = my;
+          e.preventDefault();
+        } else if (e.touches.length === 1 && scale > 1) {
+          tx = touchPanTx + (e.touches[0].clientX - touchPanStartX);
+          ty = touchPanTy + (e.touches[0].clientY - touchPanStartY);
+          applyTransform();
+          e.preventDefault();
+        }
+      }, { passive: false });
+
+      view.addEventListener('touchend', function () { lastTouchDist = null; });
+    });
+
+    // Double-click: toggle fit ↔ 2×
+    [viewOrig, viewConv].forEach(view => {
+      view.addEventListener('dblclick', function (e) {
+        const rect = viewOrig.getBoundingClientRect();
+        const px = e.clientX - rect.left, py = e.clientY - rect.top;
+        if (scale > 1.05) { pzReset(); }
+        else { zoomAt(2, px, py); }
+      });
+    });
+
+    // Button controls
+    pzInBtn.addEventListener('click', function () {
+      const vw = viewOrig.clientWidth, vh = viewOrig.clientHeight;
+      zoomAt(scale * ZOOM_STEP, vw / 2, vh / 2);
+    });
+    pzOutBtn.addEventListener('click', function () {
+      const vw = viewOrig.clientWidth, vh = viewOrig.clientHeight;
+      zoomAt(scale / ZOOM_STEP, vw / 2, vh / 2);
+    });
+    pzResetBtn.addEventListener('click', pzReset);
+
+    // Keyboard: + / - / 0
+    document.addEventListener('keydown', function (e) {
+      if (!modal.classList.contains('active')) return;
+      const vw = viewOrig.clientWidth, vh = viewOrig.clientHeight;
+      if (e.key === '+' || e.key === '=') zoomAt(scale * ZOOM_STEP, vw/2, vh/2);
+      if (e.key === '-' || e.key === '_') zoomAt(scale / ZOOM_STEP, vw/2, vh/2);
+      if (e.key === '0') pzReset();
+    });
   })();
 </script>
 </body>
