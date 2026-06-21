@@ -10,3 +10,4 @@ test-results/
 
 # Directorios temporales creados por el script
 tmp/
+deps/
