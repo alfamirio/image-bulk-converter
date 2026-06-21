@@ -4,15 +4,72 @@ A fast, privacy-focused, browser-based bulk image converter. It allows you to co
 
 For image to image comparison use [squoosh](https://squoosh.app/).
 
+---
+
 ## Features
 
-* **100% Local Processing:** Your images never leave your computer. Processing happens entirely within the browser via WebAssembly (Wasm).
-* **Next-Gen Formats:** Convert standard images (PNG, JPEG, WebP, AVIF) into highly optimized AVIF or WebP files.
-* **Batch Conversion:** Drop or select dozens of images at once.
-* **Virtual Multi-Threading:** Fine-tune performance by selecting 1, 2, or 4 concurrent processing pipelines.
-* **Smart Compression Metrics:** Instantly view the final file size ratio compared to the original. Badges turn red if the file size exceeds the original.
-* **Bulk Download:** Download individual converted images or grab them all at once in a single structured `.zip` archive.
-* **Persistent Settings:** Your preferred format, quality, speed, and thread settings are automatically saved via `localStorage`.
+- **100% Client-Side Processing** — Images never leave your device.
+- **Batch Conversion** — Process multiple images simultaneously.
+- **Modern Formats** — Convert between AVIF, WebP, MozJPEG, JPEG, and PNG.
+- **Drag & Drop Uploads** — Drop files directly into the browser.
+- **Resize & Rotation Tools** — Resize by percentage, dimensions, width, or height.
+- **Quality Presets** — From lossless to highly compressed.
+- **Performance Controls** — Adjust encoding speed and concurrent worker count.
+- **SSIM Benchmarking** — Measure visual similarity between original and converted images.
+- **ZIP Downloads** — Download individual files or export everything as a ZIP archive.
+- **Persistent Settings** — Configuration is automatically stored in localStorage.
+- **Guess Game Mode** — Compare original vs converted images without seeing metadata.
+
+
+### Compression & Conversion
+
+Choose between several output formats and quality presets to balance image quality, file size, and encoding speed.
+
+### Resize Options
+
+- Keep original dimensions
+- Scale by percentage
+- Maximum width
+- Maximum height
+- Exact dimensions
+  - Fit (preserve image)
+  - Fill (crop)
+  - Stretch
+
+### Rotation
+
+Apply a global rotation to all images:
+
+- 90° clockwise
+- 180°
+- 270° counter-clockwise
+
+### Benchmarking
+
+Optional SSIM analysis allows objective quality comparison between the original and converted image.
+
+### Bulk Operations
+
+- Convert all selected images
+- Download everything as ZIP
+- Test all quality levels
+- Test all output formats
+
+---
+
+## Quality Presets
+
+The application provides presets ranging from:
+
+- Maximum (90%)
+- High (80%)
+- Standard (65%)
+- Medium (50%)
+- Low (30%)
+- Minimum (15%)
+- Draft (5%)
+
+Advanced mode exposes the complete preset matrix for fine-grained control.
 
 ---
 
