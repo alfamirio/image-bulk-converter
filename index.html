@@ -32,12 +32,14 @@
       background-color: var(--dm-bg) !important;
       color: var(--dm-text) !important;
       height: 100%;
+      font-size: 15px;
     }
     body {
       display: flex;
       flex-direction: column;
       font-family: -apple-system, sans-serif;
       padding-bottom: 30px;
+      line-height: 1.5;
     }
     .container.mt-2 {
       flex: 1;
@@ -135,8 +137,8 @@
     }
 
     /* Small muted text */
-    .text-secondary, .text-muted, .img-meta { color: #aab0bd !important; }
-    .ratio-badge { color: #9298a6 !important; }
+    .text-secondary, .text-muted, .img-meta { color: #c0c5d0 !important; }
+    .ratio-badge { color: #a8aebb !important; }
 
     /* Nav stats tracker */
     .nav-stats-container {
@@ -151,36 +153,36 @@
     #status.text-secondary { color: var(--dm-text-muted) !important; }
 
     /* ── Original app styles (unchanged) ──────────────────────────────── */
-    .card-img-top { height: 110px; object-fit: contain; padding: 0; margin: 0; transition: transform 0.2s ease; }
-    .status-badge { font-size: 0.78rem; font-weight: 600; }
-    .img-meta { font-size: 0.8rem; line-height: 1.45; font-weight: 500; }
-    .img-meta span { color: #d4d7dd; }
-    .btn-reset-nav { padding: 0.2rem 0.4rem; font-size: 0.7rem; line-height: 1; }
-    .img-container { position: relative; overflow: hidden; height: 110px; display: flex; align-items: center; justify-content: center; }
-    .rotate-btn { position: absolute; top: 4px; right: 4px; z-index: 10; opacity: 0.8; padding: 1px 5px; font-size: 0.75rem; }
+    .card-img-top { height: 130px; object-fit: contain; padding: 0; margin: 0; transition: transform 0.2s ease; }
+    .status-badge { font-size: 0.85rem; font-weight: 700; }
+    .img-meta { font-size: 0.85rem; line-height: 1.5; font-weight: 500; }
+    .img-meta span { color: #e0e3e9; }
+    .btn-reset-nav { padding: 0.35rem 0.6rem; font-size: 0.9rem; line-height: 1; }
+    .img-container { position: relative; overflow: hidden; height: 130px; display: flex; align-items: center; justify-content: center; }
+    .rotate-btn { position: absolute; top: 4px; right: 4px; z-index: 10; opacity: 0.8; padding: 2px 6px; font-size: 0.8rem; }
     .rotate-btn:hover { opacity: 1; }
     
     /* Narrow GUI Customizations */
-    .compact-card { padding: 0.5rem !important; margin-bottom: 0.25rem !important; }
-    .compact-row { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
-    .form-label-sm { font-size: 0.78rem; margin-bottom: 0.2rem; }
-    .form-select-sm, .form-control-sm { font-size: 0.82rem; padding: 0.25rem 0.5rem; }
-    .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.82rem; }
-    .divider-sm { margin-top: 0.5rem !important; padding-top: 0.5rem !important; }
-    .navbar-text-secure { font-size: 0.8rem; }
-    .ratio-badge { font-size: 0.78rem; font-weight: 600; margin-left: 0.25rem; }
+    .compact-card { padding: 0.6rem !important; margin-bottom: 0.25rem !important; }
+    .compact-row { --bs-gutter-x: 0.6rem; --bs-gutter-y: 0.6rem; }
+    .form-label-sm { font-size: 0.85rem; margin-bottom: 0.25rem; font-weight: 600; }
+    .form-select-sm, .form-control-sm { font-size: 0.88rem; padding: 0.3rem 0.55rem; }
+    .btn-sm-custom { padding: 0.3rem 0.6rem; font-size: 0.88rem; }
+    .divider-sm { margin-top: 0.6rem !important; padding-top: 0.6rem !important; }
+    .navbar-text-secure { font-size: 0.85rem; }
+    .ratio-badge { font-size: 0.82rem; font-weight: 600; margin-left: 0.25rem; }
 
     /* Format badges (input/output file type) */
-    .fmt-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 3px; margin-left: 0.35rem; color: #fff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.03em; }
+    .fmt-badge { font-size: 0.8rem; font-weight: 700; padding: 4px; border-radius: 3px; margin-left: 0.35rem; color: #fff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.03em; }
     .fmt-badge-jpg  { background-color: #fd7e14; }
     .fmt-badge-png  { background-color: #ffc107; color: #3a2e00; }
     .fmt-badge-webp { background-color: #0d6efd; }
     .fmt-badge-avif { background-color: #16a34a; }
     .fmt-badge-unknown { background-color: #7c8290; }
-    .fmt-arrow { font-size: 0.72rem; color: #9298a6; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; font-weight: 700; }
+    .fmt-arrow { font-size: 0.82rem; color: #b0b6c2; margin-left: 0.3rem; margin-right: -0.05rem; vertical-align: middle; font-weight: 700; }
 
     /* Card title (filename) */
-    .card-title { font-size: 0.85rem !important; color: #f0f1f4 !important; }
+    .card-title { font-size: 0.92rem !important; color: #f0f1f4 !important; }
 
     /* Badges (status, time, weight%, SSIM) — brighter, higher-contrast fills for dark theme */
     .badge.bg-secondary { background-color: #5b6270 !important; color: #f5f6f8 !important; }
@@ -189,10 +191,10 @@
     .badge.bg-danger    { background-color: #e0394c !important; color: #fff !important; }
     .badge.bg-warning   { background-color: #f5b400 !important; color: #2b1f00 !important; }
 
-    #matrixContainer .badge { font-size: 0.72rem !important; font-weight: 700 !important; padding: 3px 6px !important; }
+    #matrixContainer .badge { font-size: 0.8rem !important; font-weight: 700 !important; padding: 4px !important; }
 
     .nav-stats-container {
-      font-size: 0.92rem;
+      font-size: 0.95rem;
       display: flex;
       align-items: center;
       gap: 0.6rem;
@@ -235,7 +237,7 @@
     @keyframes gg-flash { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
     @keyframes gg-shake { 0%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} 100%{transform:translateX(0)} }
     .guess-vote-btn {
-      padding: 5px 12px; font-size: 0.78rem; font-weight: 800;
+      padding: 6px 14px; font-size: 0.85rem; font-weight: 800;
       border-radius: 5px; border: 1.5px solid transparent; cursor: pointer;
       transition: background 0.12s, transform 0.1s; white-space: nowrap; flex-shrink: 0;
       letter-spacing: 0.04em; text-transform: uppercase;
@@ -279,11 +281,11 @@
       border-style: solid;
       border-color: var(--dm-border-soft);
     }
-    #dropZone .drop-icon { font-size: 2rem; margin-bottom: 0.4rem; line-height: 1; }
-    #dropZone .drop-hint { font-size: 0.82rem; }
-    #dropZone .drop-or { font-size: 0.72rem; margin: 0.2rem 0; opacity: 0.55; }
-    #dropZone .drop-browse { font-size: 0.82rem; color: #7ba4f8; text-decoration: underline; cursor: pointer; }
-    #dropZone .drop-compact { font-size: 0.78rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+    #dropZone .drop-icon { font-size: 2.2rem; margin-bottom: 0.4rem; line-height: 1; }
+    #dropZone .drop-hint { font-size: 0.92rem; }
+    #dropZone .drop-or { font-size: 0.8rem; margin: 0.2rem 0; opacity: 0.55; }
+    #dropZone .drop-browse { font-size: 0.92rem; color: #7ba4f8; text-decoration: underline; cursor: pointer; }
+    #dropZone .drop-compact { font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
     #dropZone .drop-compact .drop-count { color: #5ec97c; font-weight: 600; }
 
     /* Preview modal */
@@ -295,10 +297,10 @@
     #previewModal .preview-panels { display:flex; gap:10px; align-items:flex-start; width:100%; flex:1; min-height:0; }
     #previewModal .preview-panel { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; height:100%; position:relative; }
     #previewModal .preview-divider { width:1px; background:#444; align-self:stretch; margin:0 2px; flex-shrink:0; }
-    #previewModal .preview-label { font-size:0.76rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:3px 9px; border-radius:3px; display:inline-block; vertical-align:middle; }
+    #previewModal .preview-label { font-size:0.82rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:4px; border-radius:3px; display:inline-block; vertical-align:middle; }
     #previewModal .preview-label.original { background:#495057; color:#fff; }
     #previewModal .preview-label.converted { background:#6f42c1; color:#fff; }
-    #previewModal .preview-meta { color:#c8cad0; font-weight: 500; font-size:0.8rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
+    #previewModal .preview-meta { color:#d8dbe3; font-weight: 500; font-size:0.88rem; text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; line-height:1.6; }
 
     /* ── Pan / Zoom ──────────────────────────────────────────────────────── */
     .pz-viewport {
@@ -332,7 +334,7 @@
     }
     .pz-btn:hover { background: rgba(76,110,245,0.4); color: #fff; }
     .pz-label {
-      font-size: 0.68rem; color: #aaa; min-width: 32px; text-align: center;
+      font-size: 0.75rem; color: #c0c5d0; min-width: 36px; text-align: center;
       font-variant-numeric: tabular-nums;
     }
   </style>
@@ -340,7 +342,7 @@
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm py-1">
-  <div class="container">
+  <div class="container-xl">
     <div class="d-flex align-items-center flex-wrap gap-2 w-100 justify-content-between">
       <div class="d-flex align-items-center flex-wrap gap-2">
         <a class="navbar-brand d-flex align-items-center me-2 py-1 fs-6" href="#">
@@ -354,21 +356,25 @@
           | Local Processing
         </span>
         <button class="btn btn-danger btn-reset-nav rounded" id="resetConfigBtn" title="Reset to default configuration">
-          Clear Config
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/></svg>
         </button>
         <div class="form-check form-switch d-flex align-items-center gap-1 mb-0 ms-1" title="Fine-tune configuration">
           <input class="form-check-input mt-0" type="checkbox" role="switch" id="fineConfigToggle">
-          <label class="form-check-label navbar-text-secure" for="fineConfigToggle" style="font-size:0.8rem; cursor:pointer;">Fine Config</label>
+          <label class="form-check-label navbar-text-secure" for="fineConfigToggle" style="font-size:0.85rem; cursor:pointer;">Fine</label>
         </div>
         <div class="form-check form-switch d-flex align-items-center gap-1 mb-0 ms-1" title="Guess which image is the original — hides file info and randomises positions">
           <input class="form-check-input mt-0" type="checkbox" role="switch" id="guessGameToggle">
-          <label class="form-check-label navbar-text-secure" for="guessGameToggle" style="font-size:0.8rem; cursor:pointer;">🎮 Guess Game</label>
+          <label class="form-check-label navbar-text-secure" for="guessGameToggle" style="font-size:0.85rem; cursor:pointer;">🎮 Guess</label>
         </div>
       </div>
 
       <div class="nav-stats-container d-none" id="navStatsTracker">
+        <span class="stat-pill" id="statGuessScoreContainer" style="display:none;">
+          🎮 <span id="statGuessScore" style="color:#c084fc;font-weight:800;">0/0 (0%)</span>
+        </span>
+        <span class="text-secondary" id="statGuessScoreDivider" style="display:none;">|</span>
         <span class="stat-pill text-info" id="statSizeContainer">
-          <span id="statSizeBefore">0 B</span> - <span id="statSizeAfter">0 B</span> - <span id="statSizePercent">0%</span> <span id="statSizeDelta">(0%)</span>
+          <span id="statSizeBefore">0 B</span> - <span id="statSizeAfter">0 B</span> - <span id="statSizePercent">0%</span>
         </span>
         <span class="text-secondary">|</span>
         <span class="stat-pill text-light" id="statRemainingContainer">Remaining: <span id="statRemaining">0</span></span>
@@ -710,7 +716,6 @@
   const statSizeBefore = document.getElementById('statSizeBefore');
   const statSizeAfter = document.getElementById('statSizeAfter');
   const statSizePercent = document.getElementById('statSizePercent');
-  const statSizeDelta = document.getElementById('statSizeDelta');
 
   let selectedFiles = [];
   let convertedFiles = [];
@@ -763,7 +768,7 @@
     })
   );
 
-  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'q50', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false', fineConfig: 'false', guessGame: 'false' };
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'q50', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false', fineConfig: 'false', guessGame: 'false', ggCorrect: '0', ggTotal: '0' };
 
   // Track global execution counters
   let globalSuccessCount = 0;
@@ -819,7 +824,7 @@
     }, 100);
   }
 
-  // Updates the nav-bar "before - after - percentage (delta)" total size badge
+  // Updates the nav-bar "before - after - percentage" total size badge
   function updateSizeStat() {
     statSizeBefore.innerText = formatBytes(globalSizeBefore);
     statSizeAfter.innerText = formatBytes(globalSizeAfter);
@@ -827,12 +832,10 @@
       const percentage = Math.round((globalSizeAfter / globalSizeBefore) * 100);
       const difference = percentage - 100;
       statSizePercent.innerText = `${percentage}%`;
-      statSizeDelta.innerText = difference > 0 ? `(+${difference}%)` : `(${difference}%)`;
-      statSizeDelta.style.color = difference > 0 ? '#ff6b6b' : (difference < 0 ? '#4ade80' : '');
+      statSizePercent.style.color = difference > 0 ? '#ff6b6b' : (difference < 0 ? '#4ade80' : '');
     } else {
       statSizePercent.innerText = '0%';
-      statSizeDelta.innerText = '(0%)';
-      statSizeDelta.style.color = '';
+      statSizePercent.style.color = '';
     }
   }
 
@@ -1005,6 +1008,15 @@
   loadSavedConfig();
   toggleSpeedUI();
   toggleQualityUI();
+
+  // Show nav bar on load if guess game is enabled and has score history
+  (function() {
+    const ggOn    = (localStorage.getItem('img_guessGame') ?? 'false') !== 'false';
+    const ggTotal = parseInt(localStorage.getItem('img_ggTotal') || '0', 10);
+    if (ggOn && ggTotal > 0) {
+      document.getElementById('navStatsTracker').classList.remove('d-none');
+    }
+  })();
   
   // Menu configuration change hooks
   formatSelect.addEventListener('change', () => { toggleSpeedUI(); toggleQualityUI(); saveConfig(); resetConversionState(); });
@@ -1019,7 +1031,15 @@
   ssimCheck.addEventListener('change', () => { saveConfig(); });
   fineConfigToggle.addEventListener('change', () => { toggleFineQualityOptions(); saveConfig(); });
   const guessGameToggleEl = document.getElementById('guessGameToggle');
-  if (guessGameToggleEl) guessGameToggleEl.addEventListener('change', () => { saveConfig(); });
+  if (guessGameToggleEl) guessGameToggleEl.addEventListener('change', () => {
+    saveConfig();
+    if (typeof window.renderGuessScore === 'function') window.renderGuessScore();
+    // Show nav bar if guess game has history, hide if not and no conversion running
+    const total = parseInt(localStorage.getItem('img_ggTotal') || '0', 10);
+    if (guessGameToggleEl.checked && total > 0) {
+      document.getElementById('navStatsTracker').classList.remove('d-none');
+    }
+  });
   rotateAllMode.addEventListener('change', () => {
     applyGlobalRotation();
     saveConfig();
@@ -1037,6 +1057,7 @@
     loadSavedConfig();
     applyGlobalRotation();
     resetConversionState();
+    if (typeof window.renderGuessScore === 'function') window.renderGuessScore();
   });
 
   // ── Drag & Drop Zone ──────────────────────────────────────────────────────
@@ -1396,9 +1417,7 @@
       const percentage = Math.round((blob.size / file.size) * 100);
       const difference = percentage - 100;
       const isBigger = difference > 0;
-      let weightText = `${percentage}%`;
-      if (difference < 0) weightText += ` (${difference}%)`;
-      else if (difference > 0) weightText += ` (+${difference}%)`;
+      const weightText = `${percentage}%`;
       const memEl = document.getElementById(`mem-${index}`);
       if (memEl) {
         const afterColor = isBigger ? 'color:#dc3545;' : 'color:#198754;';
@@ -1425,11 +1444,11 @@
     const pct = total ? Math.round((done / total) * 100) : 0;
     statusElement.innerHTML = `
       <div class="d-flex align-items-center gap-2 justify-content-center">
-        <span class="text-secondary" style="font-size:0.78rem;">Processing ${done}/${total}</span>
+        <span class="text-secondary" style="font-size:0.88rem;">Processing ${done}/${total}</span>
         <div class="progress flex-grow-1" style="height:6px; max-width:200px;">
           <div class="progress-bar bg-primary" style="width:${pct}%"></div>
         </div>
-        <span class="text-secondary" style="font-size:0.78rem;">${pct}%</span>
+        <span class="text-secondary" style="font-size:0.88rem;">${pct}%</span>
       </div>`;
   }
 
@@ -1514,8 +1533,8 @@
           <img src="${URL.createObjectURL(file)}" class="card-img-top" id="preview-img-${index}" style="transform: rotate(${initialRotation}deg);">
         </div>
         <div class="card-body p-2 d-flex flex-column">
-          <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.85rem;" title="${file.name}">${file.name}</p>
-          <div class="mb-1" style="font-size:0.8rem; line-height:1.3;"><span id="fmt-badge-${index}">${formatBadgeHtml(file.name)}</span></div>
+          <p class="card-title text-truncate mb-1 fw-bold" style="font-size: 0.92rem;" title="${file.name}">${file.name}</p>
+          <div class="mb-1" style="font-size:0.85rem; line-height:1.4;"><span id="fmt-badge-${index}">${formatBadgeHtml(file.name)}</span></div>
           <div class="img-meta mb-1">
             <div><span id="res-${index}">...</span></div>
             <div><span id="mem-${index}">${formatBytes(file.size)}</span></div>
@@ -1523,8 +1542,8 @@
           <div class="mt-auto text-center mb-1" id="status-container-${index}"><span class="badge bg-secondary status-badge">Waiting</span></div>
           <div id="weight-container-${index}" class="text-center my-1 d-flex justify-content-center gap-1" style="font-size: 0.78rem;"></div>
           <div class="d-flex gap-1 mt-1">
-            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none fw-semibold" style="font-size:0.8rem; padding:3px; background:#6f42c1; color:#fff; border:none;" data-orig-fmt="${file.name}">Preview</button>
-            <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none fw-semibold" style="font-size:0.8rem; padding:3px;" download>Download</a>
+            <button id="preview-btn-${index}" class="btn btn-sm w-50 d-none fw-semibold" style="font-size:0.85rem; padding:4px; background:#6f42c1; color:#fff; border:none;" data-orig-fmt="${file.name}">Preview</button>
+            <a id="download-btn-${index}" class="btn btn-success btn-sm w-50 d-none fw-semibold" style="font-size:0.85rem; padding:4px;" download>Download</a>
           </div>
         </div>
       </div>
@@ -1556,9 +1575,9 @@
     } else if (state === 'complete') {
       statusContainer.classList.add('d-none');
       const badgeColor = isBigger ? 'bg-danger' : 'bg-success';
-      const timeBadge = timeSec !== null ? `<span class="badge bg-primary" style="font-size: 0.74rem; font-weight: 700; padding: 3px 6px;">${timeSec}s</span>` : '';
-      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.74rem; font-weight: 700; padding: 3px 6px;">SSIM</span>` : '';
-      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.74rem; font-weight: 700; padding: 3px 6px;">${weightText}</span>${ssimBadge}`;
+      const timeBadge = timeSec !== null ? `<span class="badge bg-primary" style="font-size: 0.8rem; font-weight: 700; padding: 4px;">${timeSec}s</span>` : '';
+      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.8rem; font-weight: 700; padding: 4px;">SSIM</span>` : '';
+      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.8rem; font-weight: 700; padding: 4px;">${weightText}</span>${ssimBadge}`;
       downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
       const previewBtn = document.getElementById('preview-btn-' + index);
       if (previewBtn) {
@@ -1663,6 +1682,35 @@
     if (convertedFiles.length === 0) return;
     await triggerBatchZip('converted_images.zip');
   });
+
+  // ── Guess Game Score ─────────────────────────────────────────────────────────
+  function renderGuessScore() {
+    const correct = parseInt(localStorage.getItem('img_ggCorrect') || '0', 10);
+    const total   = parseInt(localStorage.getItem('img_ggTotal')   || '0', 10);
+    const pct     = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const scoreEl = document.getElementById('statGuessScore');
+    const scoreContainer = document.getElementById('statGuessScoreContainer');
+    const scoreDivider   = document.getElementById('statGuessScoreDivider');
+    if (!scoreEl) return;
+    scoreEl.textContent = `${correct}/${total} (${pct}%)`;
+    const isGuessOn = document.getElementById('guessGameToggle')?.checked;
+    const show = isGuessOn && total > 0;
+    scoreContainer.style.display = show ? '' : 'none';
+    scoreDivider.style.display   = show ? '' : 'none';
+  }
+
+  window.recordGuessResult = function(correct) {
+    const prevCorrect = parseInt(localStorage.getItem('img_ggCorrect') || '0', 10);
+    const prevTotal   = parseInt(localStorage.getItem('img_ggTotal')   || '0', 10);
+    localStorage.setItem('img_ggCorrect', prevCorrect + (correct ? 1 : 0));
+    localStorage.setItem('img_ggTotal',   prevTotal   + 1);
+    renderGuessScore();
+  };
+
+  window.renderGuessScore = renderGuessScore;
+
+  // Show score if guess game is on and there's history
+  renderGuessScore();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -1886,6 +1934,16 @@
         const correct = !timedOut && (userPickedLeft === ggOrigIsLeft);
         showToast(correct, timedOut);
         switchToNormalMode();
+        // Record score (timed-out counts as a round played but not correct)
+        if (typeof window.recordGuessResult === 'function') {
+          if (!timedOut) {
+            window.recordGuessResult(correct);
+          } else {
+            window.recordGuessResult(false);
+          }
+          // Ensure the nav bar is visible after first guess
+          document.getElementById('navStatsTracker').classList.remove('d-none');
+        }
       }
 
       btnL.addEventListener('click', () => handleVote(true));
@@ -1912,11 +1970,11 @@
         getBlob(convSrc, function(b) {
           const size = b ? fmtBytes(b.size) : '';
           const timeBadge = timeSec != null
-            ? `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
+            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
             : '';
           const wColor = isBigger ? '#dc3545' : '#198754';
           const weightBadge = weightText
-            ? `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
+            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
             : '';
           _convInfoHtml =
             '<span class="preview-label converted">Converted</span> '
@@ -1973,11 +2031,11 @@
         getBlob(convSrc, function(b) {
           const size = b ? fmtBytes(b.size) : '';
           const timeBadge = timeSec != null
-            ? `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
+            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
             : '';
           const wColor = isBigger ? '#dc3545' : '#198754';
           const weightBadge = weightText
-            ? `<span style="display:inline-block;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
+            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
             : '';
           convLine.innerHTML =
             '<span class="preview-label converted">Converted</span> '
