@@ -43,7 +43,7 @@ Levels 0–4 trade encode time for compression efficiency. Levels 3–4 can be v
 
 ### Threads
 
-Choose 1, 2, 4, 6, or 8 concurrent workers. Workers run inside the browser's execution frame using a queue-based pool pattern.
+Choose 1, 2, 4, ..., 2n concurrent workers. Workers run inside the browser's execution frame using a queue-based pool pattern.
 
 ---
 

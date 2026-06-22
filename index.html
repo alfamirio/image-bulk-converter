@@ -470,13 +470,25 @@
 
       <div class="col-md-1">
         <label for="threadsSelect" class="form-label form-label-sm fw-bold">Threads</label>
-        <select class="form-select form-select-sm" id="threadsSelect">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="4" selected>4</option>
-          <option value="6">6</option>
-          <option value="8">8</option>
-        </select>
+        <select class="form-select form-select-sm" id="threadsSelect"></select>
+        <script>
+          (function () {
+            const cores = navigator.hardwareConcurrency || 4;
+            const select = document.getElementById('threadsSelect');
+            const steps = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32].filter(n => n <= cores);
+            // Always include the actual core count if not already in the list
+            if (!steps.includes(cores)) steps.push(cores);
+            steps.sort((a, b) => a - b);
+            const preferred = steps.includes(4) ? 4 : steps[Math.floor(steps.length / 2)];
+            steps.forEach(n => {
+              const opt = document.createElement('option');
+              opt.value = n;
+              opt.textContent = n === cores ? `${n} (max)` : n;
+              if (n === preferred) opt.selected = true;
+              select.appendChild(opt);
+            });
+          })();
+        </script>
       </div>
 
       <div class="col-md-2 d-flex align-items-end gap-1">
