@@ -1,82 +1,105 @@
 # Local Bulk Image Converter
 
-A fast, privacy-focused, browser-based bulk image converter. It allows you to convert multiple images simultaneously to modern formats like **AVIF** and **WebP** without uploading anything to a server. Everything runs completely client-side.
+A fast, privacy-focused, browser-based bulk image converter. Convert multiple images simultaneously to modern formats like **AVIF** and **WebP** without uploading anything to a server. Everything runs completely client-side.
 
-For image to image comparison use [squoosh](https://squoosh.app/).
+For side-by-side image quality comparison, see [Squoosh](https://squoosh.app/).
 
 ---
 
 ## Features
 
 - **100% Client-Side Processing** — Images never leave your device.
-- **Batch Conversion** — Process multiple images simultaneously.
+- **Batch Conversion** — Process multiple images simultaneously with a configurable worker pool.
 - **Modern Formats** — Convert between AVIF, WebP, MozJPEG, JPEG, and PNG.
-- **Drag & Drop Uploads** — Drop files directly into the browser.
-- **Resize & Rotation Tools** — Resize by percentage, dimensions, width, or height.
-- **Quality Presets** — From lossless to highly compressed.
-- **Performance Controls** — Adjust encoding speed and concurrent worker count.
-- **SSIM Benchmarking** — Measure visual similarity between original and converted images.
+- **Drag & Drop Uploads** — Drop files directly into the browser or click to browse.
+- **Resize & Rotation Tools** — Resize by percentage, max width/height, or exact dimensions; rotate globally.
+- **Max File Size Mode** — Binary-search encoding finds the highest quality that fits a target file size.
+- **Quality Presets** — 21 levels from Lossless (100%) to Worst (0%), with an optional Fine/Advanced matrix view.
+- **Performance Controls** — Adjust encoding speed (0–4) and concurrent thread count (1–8).
+- **SSIM Benchmarking** — Optional per-image SSIM score (Y+Cb+Cr, 11×11 Gaussian window, matches ffmpeg output).
+- **Synchronized Pan & Zoom** — Full-screen side-by-side preview with linked zoom (up to 16×), drag-to-pan, pinch-to-zoom, and keyboard shortcuts.
 - **ZIP Downloads** — Download individual files or export everything as a ZIP archive.
-- **Persistent Settings** — Configuration is automatically stored in localStorage.
-- **Guess Game Mode** — Compare original vs converted images without seeing metadata.
+- **Persistent Settings** — All configuration is automatically saved in `localStorage`.
+- **Guess Game Mode** — Compare original vs. converted images without seeing metadata; randomises image positions and tracks your score.
+- **Live Stats Bar** — Real-time totals for size before/after, compression ratio, success count, errors, and elapsed time.
 
+---
 
-### Compression & Conversion
+## Conversion
 
-Choose between several output formats and quality presets to balance image quality, file size, and encoding speed.
+### Output Formats
 
-### Resize Options
+| Format | Notes |
+|---|---|
+| **WebP** | Optimised — broad browser support, excellent compression |
+| **AVIF** | Next-Gen — best compression, slower to encode |
+| **MozJPEG** | Better JPEG — improved compression over standard JPEG |
+| **PNG** | Lossless — no quality loss |
+| **JPEG** | Standard — widest compatibility |
 
-- Keep original dimensions
-- Scale by percentage
-- Maximum width
-- Maximum height
-- Exact dimensions
-  - Fit (preserve image)
-  - Fill (crop)
-  - Stretch
+### Processing Speed
 
-### Rotation
+Levels 0–4 trade encode time for compression efficiency. Levels 3–4 can be very slow for AVIF; a warning is shown when selected.
 
-Apply a global rotation to all images:
+### Threads
 
-- 90° clockwise
-- 180°
-- 270° counter-clockwise
+Choose 1, 2, 4, 6, or 8 concurrent workers. Workers run inside the browser's execution frame using a queue-based pool pattern.
 
-### Benchmarking
+---
 
-Optional SSIM analysis allows objective quality comparison between the original and converted image.
+## Resize Options
 
-### Bulk Operations
+| Mode | Description |
+|---|---|
+| Original Size | No resizing applied |
+| Scale (%) | Proportional scale by percentage |
+| Max Width (px) | Constrain to maximum width |
+| Max Height (px) | Constrain to maximum height |
+| Exact Size | Set explicit width and height |
 
-- Convert all selected images
-- Download everything as ZIP
-- Test all quality levels
-- Test all output formats
+When using **Exact Size**, choose a fitting strategy:
+
+- **Fit** — Preserve aspect ratio, no cropping
+- **Fill** — Crop to fill the target dimensions
+- **Stretch** — Stretch to fill exactly
+
+---
+
+## Rotation
+
+Apply a global rotation to all images before encoding:
+
+- No Rotation (default)
+- 90° Clockwise
+- 180° Flip
+- 270° Counter-Clockwise
+
+---
+
+## Max File Size
+
+Set a target maximum output file size using preset pills (128 KiB, 256 KiB, 512 KiB, 1 MiB) or a custom KiB value. The encoder runs a binary search across quality presets to find the best quality that fits within the limit.
+
+---
+
+## SSIM Benchmarking
+
+Enable the **SSIM** toggle to compute a per-image structural similarity score after each conversion. The implementation uses an 11×11 Gaussian-weighted sliding window across Y, Cb, and Cr channels (BT.601), averaged equally — matching the output of `ffmpeg`'s `ssim` filter.
+
+---
+
+## Guess Game
+
+Enable the **🎮 Guess** toggle to enter game mode. The full-screen preview hides file metadata and randomly places the original and converted images on either side. Click the button matching whichever image you think is the original. Your running score is shown in the stats bar.
 
 ---
 
 ## Quality Presets
 
-The application provides presets ranging from:
-
-- Maximum (90%)
-- High (80%)
-- Standard (65%)
-- Medium (50%)
-- Low (30%)
-- Minimum (15%)
-- Draft (5%)
-
-Advanced mode exposes the complete preset matrix for fine-grained control.
-
----
-
-## Quality
+21 levels covering the full range from lossless to maximum compression. **Fine** mode exposes the complete preset matrix for per-codec fine-grained control.
 
 | Name | Label / Target % | AVIF (cqLevel ↓) | WebP (quality ↑) | MozJPEG (quality ↑) | JPEG (quality ↑) |
-| --- | --- | --- | --- | --- | --- |
+|---|---|---|---|---|---|
 | q100 | Lossless — 100% | 0 | 100 | 100 | 100 |
 | q95 | Q95 — 95% | 4 | 95 | 95 | 96 |
 | q90 | Maximum — 90% | 8 | 90 | 90 | 92 |
@@ -103,54 +126,31 @@ Advanced mode exposes the complete preset matrix for fine-grained control.
 
 ## Tech Stack
 
-* **Frontend UI:** HTML5, CSS3, [Bootstrap 5](https://getbootstrap.com/)
-* **Codec Engines (WebAssembly):** * [@jsquash/avif](https://www.google.com/search?q=https://github.com/GoogleChromeLabs/jsquash) for AVIF decoding and encoding.
-* [@jsquash/webp](https://www.google.com/search?q=https://github.com/GoogleChromeLabs/jsquash) for WebP decoding and encoding.
+- **Frontend UI:** HTML5, CSS3, [Bootstrap 5](https://getbootstrap.com/) (dark theme, always on)
+- **Codec Engines (WebAssembly via CDN):**
+  - [`@jsquash/avif@1.0.2`](https://github.com/GoogleChromeLabs/jsquosh) — AVIF encode/decode
+  - [`@jsquash/webp@1.2.0`](https://github.com/GoogleChromeLabs/jsquosh) — WebP encode/decode
+  - [`@jsquash/jpeg@1.4.0`](https://esm.sh/@jsquash/jpeg) — MozJPEG encode
+- **Archive Utility:** [JSZip 3.10.1](https://stuk.github.io/jszip/) — client-side ZIP generation
+- **SSIM:** Custom implementation, BT.601 YCbCr, 11×11 Gaussian kernel (matches ffmpeg)
+- **Canvas API:** Native JPEG/PNG decode and fallback encode path
 
-
-* **Archive Utility:** [JSZip](https://stuk.github.io/jszip/) for client-side ZIP generation.
+> **Note:** The app fetches WebAssembly codecs dynamically from `unpkg.com` and `esm.sh`. It must be served over HTTP, not opened as a `file://` URL, to avoid CORS restrictions.
 
 ---
 
-## Tests
-### Automated Testing
+## Architecture
 
-The project includes an automated end-to-end testing suite using **Playwright** to validate the frontend conversion workflow under a local server environment.
+The app uses an asynchronous **Worker Pool** pattern. On Convert, it allocates the selected number of execution slots (Threads) and drains the image queue concurrently. Each worker:
 
-### Prerequisites
+1. Receives the image buffer and encoding parameters.
+2. Decodes using a jsquash WASM codec (or falls back to `OffscreenCanvas` for JPEG/PNG).
+3. Applies rotation and resize transforms via `OffscreenCanvas` when needed.
+4. Encodes to the target format and posts the result back.
 
-Ensure you have installed the development dependencies in the root directory:
-```bash
-npm install -D @playwright/test http-server
-npx playwright install
+A separate **binary-search worker** is spawned per image when Max File Size mode is active, running independent encode trials without blocking the main pool.
 
-```
-
-The test execution is orchestrated via playwright.config.js in the root folder, which manages the lifecycle of the local server automatically:
-
-### Running the Tests
-
-To execute the suite, run the following commands from the project root:
-
-* **Headless execution (default):**
-```bash
-npx playwright test
-
-```
-
-
-* **Headed execution (see the browser actions live):**
-```bash
-npx playwright test --headed
-
-```
-
-
-* **Debug mode (step-by-step inspector):**
-```bash
-npx playwright test --debug
-
-```
+> Because tasks run inside the browser's primary execution frame, OS-level multi-core spikes may appear grouped under a single process thread depending on your browser's WebAssembly sandbox configuration.
 
 ---
 
@@ -158,41 +158,46 @@ npx playwright test --debug
 
 ### Prerequisites
 
-Since the application uses **ES Modules** and fetches specialized WebAssembly codecs dynamically from an external CDN (`unpkg.com`), running the file directly via `file://` protocol in your browser will trigger CORS restrictions.
+Serve the project over HTTP (required for ES Modules and CDN-fetched WASM codecs).
 
-You **must** serve the project using a local HTTP server.
+### Running Locally
 
-### Running it Locally
-
-1. Clone or save the project files into a folder:
-
-2. Start a simple local server. You can use any of the following standard developer tools:
-* **Using NodeJS (npx):**
 ```bash
+# Node.js
 npx serve .
 
-```
-
-
-* **Using Python 3:**
-```bash
+# Python 3
 python -m http.server 8080
-
 ```
 
+Or use the **Live Server** extension in VS Code: right-click `index.html` → *Open with Live Server*.
 
-* **Using VS Code:** Install the **Live Server** extension, right-click `index.html`, and select *Open with Live Server*.
-
-
-3. Open your browser and navigate to the address provided by your server (usually `http://localhost:8080` or `http://localhost:3000`).
+Open your browser at `http://localhost:8080` (or whichever port your server reports).
 
 ---
 
-## Architecture Note
+## Automated Testing
 
-The application employs an asynchronous **Worker Pool** queue pattern. When you hit **Convert**, the application allocates your chosen number of execution slots (Threads) and consumes the image queue concurrently.
+The project includes an end-to-end test suite using **Playwright**.
 
-> [!NOTE]
-> Because tasks run inside the browser's primary execution frame, OS-level multi-core hardware spikes might appear grouped under a single process thread depending on your browser's WebAssembly sandbox configuration.
+### Prerequisites
 
----
+```bash
+npm install -D @playwright/test http-server
+npx playwright install
+```
+
+Test lifecycle (local HTTP server startup/shutdown) is managed automatically via `playwright.config.js` in the project root.
+
+### Running Tests
+
+```bash
+# Headless (default)
+npx playwright test
+
+# Headed — watch the browser actions live
+npx playwright test --headed
+
+# Debug — step-by-step inspector
+npx playwright test --debug
+```
