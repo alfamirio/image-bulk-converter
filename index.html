@@ -253,6 +253,39 @@
       display: flex; gap: 8px; width: 100%; flex-shrink: 0; padding: 4px 0 0;
     }
 
+    /* ── Max File Size pills ──────────────────────────────────────────── */
+    .size-pill {
+      display: inline-block;
+      padding: 3px 9px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 4px;
+      border: 1.5px solid var(--dm-border);
+      color: var(--dm-text-muted);
+      background: var(--dm-bg-input);
+      cursor: pointer;
+      transition: border-color 0.13s, background 0.13s, color 0.13s;
+      white-space: nowrap;
+      user-select: none;
+      line-height: 1.4;
+    }
+    .size-pill:hover { border-color: #4c6ef5; color: var(--dm-text); }
+    .size-pill.active {
+      background: rgba(76,110,245,0.18) !important;
+      border-color: #4c6ef5 !important;
+      color: #7ba4f8 !important;
+    }
+    #maxSizeCustomInput {
+      width: 72px;
+      font-size: 0.8rem;
+      padding: 3px 7px;
+      height: auto;
+    }
+    #maxSizeCustomInput.active-custom {
+      border-color: #4c6ef5 !important;
+      box-shadow: 0 0 0 0.15rem rgba(76,110,245,0.25) !important;
+    }
+
     /* ── Drag & Drop Zone ──────────────────────────────────────────────── */
     #dropZone {
       border: 2px dashed var(--dm-border);
@@ -365,6 +398,10 @@
         <div class="form-check form-switch d-flex align-items-center gap-1 mb-0 ms-1" title="Guess which image is the original — hides file info and randomises positions">
           <input class="form-check-input mt-0" type="checkbox" role="switch" id="guessGameToggle">
           <label class="form-check-label navbar-text-secure" for="guessGameToggle" style="font-size:0.85rem; cursor:pointer;">🎮 Guess</label>
+        </div>
+        <div class="form-check form-switch d-flex align-items-center gap-1 mb-0 ms-1" title="Compute SSIM quality score after each conversion (slight overhead)">
+          <input class="form-check-input mt-0" type="checkbox" role="switch" id="ssimCheck">
+          <label class="form-check-label navbar-text-secure" for="ssimCheck" style="font-size:0.85rem; cursor:pointer;">SSIM</label>
         </div>
       </div>
 
@@ -490,16 +527,23 @@
       </div>
 
       <div class="col-md-auto ms-auto m-0">
-        <label class="form-label form-label-sm fw-bold d-block">Benchmark</label>
-        <div class="d-flex align-items-center gap-2">
-          <div class="form-check form-switch mb-0" title="Compute SSIM quality score after each conversion (slight overhead)">
-            <input class="form-check-input" type="checkbox" role="switch" id="ssimCheck">
-            <label class="form-check-label form-label-sm fw-bold" for="ssimCheck" style="cursor:pointer;">SSIM</label>
+        <label class="form-label form-label-sm fw-bold d-block mb-1">
+          Max File Size
+          <span class="text-muted" style="font-weight:400; font-size:0.78rem;" id="maxSizeHint"></span>
+        </label>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="size-pill" data-bytes="0">None</span>
+          <span class="size-pill" data-bytes="131072">128 KB</span>
+          <span class="size-pill" data-bytes="262144">256 KB</span>
+          <span class="size-pill" data-bytes="524288">512 KB</span>
+          <span class="size-pill" data-bytes="1048576">1 MB</span>
+          <div class="d-flex align-items-center gap-1">
+            <input type="number" class="form-control form-control-sm" id="maxSizeCustomInput" placeholder="KB" min="1" title="Custom max file size in KB">
+            <span style="font-size:0.8rem; color:var(--dm-text-muted);">KB</span>
           </div>
-          <button class="btn btn-outline-primary btn-sm-custom" id="batchQualityBtn" disabled title="Run all 5 quality presets with the selected format → ZIP">All Qualities</button>
-          <button class="btn btn-outline-secondary btn-sm-custom" id="batchFormatBtn" disabled title="Run all 5 formats with the selected quality → ZIP">All Formats</button>
         </div>
       </div>
+
     </div>
 
     <div id="status" class="mt-1 text-center small text-secondary"></div>
@@ -607,6 +651,10 @@
 
   self.onmessage = async (e) => {
     const { type, arrayBuffer, fileType, fileName, targetMime, rawQuality, targetEffort, index, qLevel, rotation, imageData, resizeMode } = e.data;
+
+    // Warm-up ping: imports are already resolved by the time onmessage fires,
+    // so a PONG here guarantees all three WASM modules are compiled and ready.
+    if (type === 'PING') { self.postMessage({ type: 'PONG' }); return; }
     
     try {
       if (type === 'CONTINUE_ENCODE') {
@@ -675,6 +723,90 @@
   }
 </script>
 
+<!-- ── Binary-search worker (one instance per image, for Max File Size mode) ── -->
+<!-- Uses the same WASM codecs as worker-script for true CPU-parallel encoding.  -->
+<!-- avifCqMap / webpQualityMap / mozQualityMap are prepended at runtime.        -->
+<!-- targetEffort is passed in so codec speed settings match the UI selection.   -->
+<script id="binsearch-worker-script" type="text/plain">
+  import * as avifCodec from "https://unpkg.com/@jsquash/avif@1.0.2/index.js?module";
+  import * as webpCodec from "https://unpkg.com/@jsquash/webp@1.2.0/index.js?module";
+  import * as jpegCodec from "https://esm.sh/@jsquash/jpeg@1.4.0";
+
+  // Fallback: OffscreenCanvas path for plain JPEG or any unrecognised mime
+  async function encodeCanvas(imageData, mimeType, quality01) {
+    const oc = new OffscreenCanvas(imageData.width, imageData.height);
+    oc.getContext('2d').putImageData(imageData, 0, 0);
+    const blob = await oc.convertToBlob({ type: mimeType, quality: quality01 });
+    return blob.arrayBuffer();
+  }
+
+  // Encode one trial with the appropriate WASM codec (or canvas fallback)
+  async function encodeOnce(imageData, targetMime, preset, targetEffort) {
+    if (targetMime === 'image/avif') {
+      const cqLevel = avifCqMap[preset.key] !== undefined ? avifCqMap[preset.key] : 36;
+      const avifSpeedMap = [10, 8, 6, 3, 1];
+      const avifSpeed = avifSpeedMap[targetEffort] !== undefined ? avifSpeedMap[targetEffort] : 6;
+      return avifCodec.encode(imageData, { cqLevel, cqAlphaLevel: -1, speed: avifSpeed });
+    }
+    if (targetMime === 'image/webp') {
+      const webpQuality = webpQualityMap[preset.key] !== undefined ? webpQualityMap[preset.key] : 50;
+      const webpEffortMap = [0, 1, 2, 4, 5];
+      const webpEffort = webpEffortMap[targetEffort] !== undefined ? webpEffortMap[targetEffort] : 2;
+      return webpCodec.encode(imageData, { quality: webpQuality, method: webpEffort });
+    }
+    if (targetMime === 'image/mozjpeg') {
+      const mozQuality = mozQualityMap[preset.key] !== undefined ? mozQualityMap[preset.key] : 52;
+      return jpegCodec.encode(imageData, { quality: mozQuality });
+    }
+    // Plain JPEG or unknown: canvas fallback
+    return encodeCanvas(imageData, targetMime === 'image/jpeg' ? 'image/jpeg' : targetMime, preset.jpeg / 100);
+  }
+
+  self.onmessage = async (e) => {
+    const { imageData, targetMime, presets, maxBytes, targetEffort, index } = e.data;
+
+    // Warm-up ping — guarantees WASM modules are compiled before the first real job.
+    if (e.data.type === 'PING') { self.postMessage({ type: 'PONG' }); return; }
+
+    let lo = 0, hi = presets.length - 1;
+    let bestBuffer = null, bestQLevel = presets[hi].key;
+
+    async function tryEncode(preset) {
+      try { return await encodeOnce(imageData, targetMime, preset, targetEffort); }
+      catch { return null; }
+    }
+
+    // Binary search: highest-quality (lowest-index) preset whose output fits maxBytes
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const buf = await tryEncode(presets[mid]);
+      if (buf && buf.byteLength <= maxBytes) {
+        bestBuffer = buf;
+        bestQLevel = presets[mid].key;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+
+    // Fallback: nothing fit — use worst preset
+    if (!bestBuffer) {
+      const worst = await tryEncode(presets[presets.length - 1]);
+      if (worst) { bestBuffer = worst; bestQLevel = presets[presets.length - 1].key; }
+    }
+
+    if (bestBuffer) {
+      self.postMessage(
+        { type: 'BS_SUCCESS', index, buffer: bestBuffer, qLevel: bestQLevel,
+          width: imageData.width, height: imageData.height },
+        [bestBuffer]
+      );
+    } else {
+      self.postMessage({ type: 'BS_ERROR', index, error: 'No encode succeeded' });
+    }
+  };
+</script>
+
 <script type="module">
   const imageInput = document.getElementById('imageInput');
   const formatSelect = document.getElementById('formatSelect');
@@ -698,8 +830,6 @@
 
   const convertBtn = document.getElementById('convertBtn');
   const downloadZipBtn = document.getElementById('downloadZipBtn');
-  const batchQualityBtn = document.getElementById('batchQualityBtn');
-  const batchFormatBtn = document.getElementById('batchFormatBtn');
   const resetConfigBtn = document.getElementById('resetConfigBtn');
   const ssimCheck = document.getElementById('ssimCheck');
   const fineConfigToggle = document.getElementById('fineConfigToggle');
@@ -768,7 +898,184 @@
     })
   );
 
-  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'q50', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false', fineConfig: 'false', guessGame: 'false', ggCorrect: '0', ggTotal: '0' };
+  const DEFAULT_CONFIG = { format: 'image/webp', quality: 'q50', speed: '1', threads: '4', rotateAll: '0', resizeMode: 'none', resizeValue: '100', exactW: '800', exactH: '600', exactFit: 'fit', ssim: 'false', fineConfig: 'false', guessGame: 'false', ggCorrect: '0', ggTotal: '0', maxFileSize: '0' };
+
+  // ── Worker Pre-warming ────────────────────────────────────────────────────
+  // WorkerPool keeps a fixed set of live workers whose WASM modules are already
+  // compiled by the time the user clicks Convert.
+  //
+  // Lifecycle:
+  //   warmUp(url, n)  — spawns n workers, PINGs each, resolves .ready when all
+  //                     PONGs arrive (i.e. all three WASM modules compiled).
+  //   claim()         — returns { workers, url } synchronously if ready, else null.
+  //                     Caller MUST call release() when the batch finishes so the
+  //                     pool can be replaced with a fresh warm set.
+  //   release()       — terminates the current workers, revokes the blob URL, then
+  //                     immediately starts warming a fresh replacement pool so the
+  //                     next Convert click finds workers already hot.
+  //   invalidate()    — like release() but does NOT start a replacement (used when
+  //                     the thread-count or file-count changes mid-session).
+  //
+  // A pool is keyed by (workerUrl content × size). Any change to either
+  // (threads setting, file count, codec maps) calls invalidate() then schedules
+  // a fresh warmUp via scheduleWarmUp().
+  class WorkerPool {
+    constructor() {
+      this._workers = [];
+      this._url     = null;
+      this._size    = 0;
+      this._ready   = false;
+      this._readyPromise = null;
+      this._warming = false;
+    }
+
+    // Spawn `n` workers from `url` and PING each; resolves when all are warm.
+    warmUp(url, n) {
+      // Discard any previous pool first
+      this._teardown();
+      this._url     = url;
+      this._size    = n;
+      this._ready   = false;
+      this._warming = true;
+      this._workers = Array.from({ length: n }, () => new Worker(url, { type: 'module' }));
+
+      this._readyPromise = Promise.all(this._workers.map(w =>
+        new Promise(resolve => {
+          w.addEventListener('message', function onPong(e) {
+            if (e.data.type === 'PONG') {
+              w.removeEventListener('message', onPong);
+              resolve();
+            }
+          });
+          w.postMessage({ type: 'PING' });
+        })
+      )).then(() => {
+        this._ready   = true;
+        this._warming = false;
+      }).catch(() => {
+        // Warm-up failed (e.g. network error fetching WASM) — pool stays cold.
+        this._ready   = false;
+        this._warming = false;
+      });
+
+      return this._readyPromise;
+    }
+
+    // Returns the live workers synchronously if the pool is warm, otherwise null.
+    // Caller takes ownership: must call release() after the batch.
+    claim() {
+      if (!this._ready || this._workers.length === 0) return null;
+      const claimed = { workers: this._workers, url: this._url };
+      // Mark as not-ready so a concurrent Convert click can't double-claim
+      this._ready   = false;
+      this._workers = [];
+      this._url     = null;
+      return claimed;
+    }
+
+    // Called by the batch runner when it finishes.  Terminates the used workers
+    // and immediately warms a fresh replacement pool of the same size.
+    release(usedWorkers, usedUrl, freshUrl, freshSize) {
+      usedWorkers.forEach(w => w.terminate());
+      URL.revokeObjectURL(usedUrl);
+      if (freshUrl && freshSize > 0) this.warmUp(freshUrl, freshSize);
+    }
+
+    // Hard reset — terminates workers, revokes url, does NOT re-warm.
+    invalidate() {
+      this._teardown();
+    }
+
+    _teardown() {
+      this._workers.forEach(w => w.terminate());
+      if (this._url) URL.revokeObjectURL(this._url);
+      this._workers = [];
+      this._url     = null;
+      this._size    = 0;
+      this._ready   = false;
+      this._warming = false;
+      this._readyPromise = null;
+    }
+  }
+
+  // One pool for each worker type.  Both are invalidated together whenever
+  // the thread count or file count changes (pool size = min(threads, files)).
+  const conversionPool  = new WorkerPool();
+  const binsearchPool   = new WorkerPool();
+
+  // Builds the blob URL for the regular conversion worker (codec maps prepended).
+  function buildConversionWorkerUrl() {
+    const codecMaps = `
+      const avifCqMap      = ${JSON.stringify(avifCqMapData)};
+      const webpQualityMap = ${JSON.stringify(webpQualityData)};
+      const mozQualityMap  = ${JSON.stringify(mozQualityData)};
+    `;
+    const code = codecMaps + document.getElementById('worker-script').textContent;
+    return URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+  }
+
+  // Builds the blob URL for the binsearch worker.
+  function buildBinsearchWorkerUrl() {
+    const codecMaps = `
+      const avifCqMap      = ${JSON.stringify(avifCqMapData)};
+      const webpQualityMap = ${JSON.stringify(webpQualityData)};
+      const mozQualityMap  = ${JSON.stringify(mozQualityData)};
+    `;
+    const code = codecMaps + document.getElementById('binsearch-worker-script').textContent;
+    return URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+  }
+
+  // Invalidates both pools and starts warming fresh ones sized for the current
+  // thread count and file count.  Safe to call speculatively — if no files are
+  // loaded yet it's a no-op (pool size would be 0).
+  function scheduleWarmUp() {
+    const fileCount = selectedFiles.length;
+    if (fileCount === 0) {
+      conversionPool.invalidate();
+      binsearchPool.invalidate();
+      return;
+    }
+    const threads = parseInt(threadsSelect.value, 10) || 4;
+    const poolSize = Math.min(threads, fileCount);
+
+    conversionPool.warmUp(buildConversionWorkerUrl(), poolSize);
+    binsearchPool.warmUp(buildBinsearchWorkerUrl(), poolSize);
+  }
+
+  // ── Max File Size state ────────────────────────────────────────────────────
+  // maxFileSizeBytes = 0 means disabled
+  let maxFileSizeBytes = 0;
+
+  function getMaxFileSizeBytes() { return maxFileSizeBytes; }
+
+  function setMaxFileSize(bytes) {
+    maxFileSizeBytes = bytes;
+    const pills = document.querySelectorAll('.size-pill');
+    const customInput = document.getElementById('maxSizeCustomInput');
+    const hint = document.getElementById('maxSizeHint');
+    const PREDEFINED = [0, 131072, 262144, 524288, 1048576];
+    const matchedPredefined = PREDEFINED.includes(bytes);
+
+    pills.forEach(p => {
+      p.classList.toggle('active', parseInt(p.dataset.bytes, 10) === bytes);
+    });
+
+    if (matchedPredefined) {
+      customInput.value = '';
+      customInput.classList.remove('active-custom');
+    } else {
+      customInput.classList.add('active-custom');
+    }
+
+    if (bytes === 0) {
+      hint.textContent = '';
+    } else {
+      hint.textContent = `— binary search will find the highest quality ≤ ${formatBytes(bytes)}`;
+    }
+
+    localStorage.setItem('img_maxFileSize', String(bytes));
+    resetConversionState();
+  }
 
   // Track global execution counters
   let globalSuccessCount = 0;
@@ -919,6 +1226,10 @@
 
     toggleResizeUI();
     updateExactRatioText();
+
+    // Restore max file size (after setMaxFileSize is defined)
+    const savedMaxSize = parseInt(localStorage.getItem('img_maxFileSize') || DEFAULT_CONFIG.maxFileSize, 10);
+    setMaxFileSize(isNaN(savedMaxSize) ? 0 : savedMaxSize);
   }
 
   function saveConfig() {
@@ -1022,7 +1333,7 @@
   formatSelect.addEventListener('change', () => { toggleSpeedUI(); toggleQualityUI(); saveConfig(); resetConversionState(); });
   qualitySelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
   speedSelect.addEventListener('change', () => { toggleSpeedUI(); saveConfig(); resetConversionState(); });
-  threadsSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); });
+  threadsSelect.addEventListener('change', () => { saveConfig(); resetConversionState(); scheduleWarmUp(); });
   resizeValue.addEventListener('input', () => { saveConfig(); resetConversionState(); });
   exactWidth.addEventListener('input', () => { updateExactRatioText(); saveConfig(); resetConversionState(); });
   exactHeight.addEventListener('input', () => { updateExactRatioText(); saveConfig(); resetConversionState(); });
@@ -1060,6 +1371,24 @@
     if (typeof window.renderGuessScore === 'function') window.renderGuessScore();
   });
 
+  // ── Max File Size pill + custom input listeners ────────────────────────────
+  document.querySelectorAll('.size-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      setMaxFileSize(parseInt(pill.dataset.bytes, 10));
+    });
+  });
+
+  const maxSizeCustomInput = document.getElementById('maxSizeCustomInput');
+  maxSizeCustomInput.addEventListener('input', () => {
+    const val = parseFloat(maxSizeCustomInput.value);
+    if (!isNaN(val) && val > 0) {
+      setMaxFileSize(Math.round(val * 1024));
+    } else if (maxSizeCustomInput.value === '') {
+      setMaxFileSize(0);
+    }
+  });
+  maxSizeCustomInput.addEventListener('keydown', e => e.stopPropagation());
+
   // ── Drag & Drop Zone ──────────────────────────────────────────────────────
   const dropZone = document.getElementById('dropZone');
 
@@ -1096,6 +1425,9 @@
     });
 
     updateDropZoneUI();
+
+    // Pre-warm worker pools so WASM is compiled before the user clicks Convert.
+    scheduleWarmUp();
   }
 
   dropZone.addEventListener('click', (e) => {
@@ -1145,6 +1477,111 @@
     const qLevel     = qualitySelect.value;
     const rawQuality = qualityValues[qLevel];
     const { targetEffort, maxThreads, modeResize, valResize, targetW, targetH, strategyFit } = getConversionParams();
+    const maxBytes = getMaxFileSizeBytes();
+
+    // ── Max File Size mode: pooled binary-search workers ─────────────────────
+    // Attempts to claim pre-warmed binsearch workers (WASM already compiled).
+    // Falls back to spawning fresh workers if the pool isn't ready yet.
+    if (maxBytes > 0 && targetMime !== 'image/png') {
+      setUIBusy(true);
+      convertedFiles = [];
+      initStatsTracking(selectedFiles.length);
+
+      // Claim the pre-warmed pool, or build a fresh one if not ready.
+      const bsClaimed = binsearchPool.claim();
+      const bsNeed    = Math.min(maxThreads, selectedFiles.length);
+
+      let bsWorkerUrl, bsWorkers;
+      if (bsClaimed && bsClaimed.workers.length >= bsNeed) {
+        // Hot path — workers already have WASM compiled.
+        bsWorkerUrl = bsClaimed.url;
+        bsWorkers   = bsClaimed.workers.slice(0, bsNeed);
+        bsClaimed.workers.slice(bsNeed).forEach(w => w.terminate());
+      } else {
+        // Cold path — pool not ready; discard partial claim and spawn fresh.
+        if (bsClaimed) {
+          bsClaimed.workers.forEach(w => w.terminate());
+          URL.revokeObjectURL(bsClaimed.url);
+        }
+        bsWorkerUrl = buildBinsearchWorkerUrl();
+        bsWorkers   = Array.from({ length: bsNeed }, () => new Worker(bsWorkerUrl, { type: 'module' }));
+      }
+
+      // Build the job queue — one entry per image
+      const bsQueue = selectedFiles.map((file, index) => ({ file, index }));
+
+      // Runs one binsearch job on a persistent worker; the worker is NOT terminated
+      // afterward — it stays alive and receives the next job from the queue.
+      function runBsJobOnWorker(worker, { file, index }) {
+        return new Promise(async (resolve) => {
+          updateCardStatus(index, 'processing');
+          const imageStartTime = performance.now();
+          try {
+            // Decode + resize + rotate on the main thread (requires DOM/canvas)
+            const imageData = await decodeResizeRotateCanvas(
+              file, fileRotations[index] || 0,
+              modeResize, valResize, targetW, targetH, strategyFit
+            );
+
+            // Send job to the persistent worker; resolve when it replies
+            await new Promise((resolveEncode, rejectEncode) => {
+              worker.onmessage = (e) => {
+                if (e.data.type === 'BS_SUCCESS') resolveEncode(e.data);
+                else rejectEncode(new Error(e.data.error || 'BS_ERROR'));
+              };
+              worker.onerror = (err) => rejectEncode(err);
+              const transferBuf = imageData.data.buffer;
+              worker.postMessage(
+                { imageData, targetMime, presets: QUALITY_PRESETS, maxBytes, targetEffort, index },
+                [transferBuf]
+              );
+            }).then((result) => {
+              finalizeBatchFile(
+                result.buffer, result.width, result.height,
+                file, index, targetExt, targetMime, imageStartTime, true, null
+              );
+              incrementStat(true);
+
+              const weightContainer = document.getElementById(`weight-container-${index}`);
+              if (weightContainer) {
+                const qLabel = QUALITY_PRESETS.find(p => p.key === result.qLevel)?.label || result.qLevel;
+                const qBadge = document.createElement('span');
+                qBadge.className = 'badge';
+                qBadge.style.cssText = 'font-size:0.75rem; font-weight:700; padding:3px 5px; background:#6f42c1; color:#fff;';
+                qBadge.title = `Binary search found: ${qLabel}`;
+                qBadge.textContent = result.qLevel.replace('q', 'Q') + '%';
+                weightContainer.appendChild(qBadge);
+              }
+            });
+          } catch {
+            updateCardStatus(index, 'error');
+            incrementStat(false);
+          }
+          resolve();
+        });
+      }
+
+      try {
+        // Each pool slot drains the shared queue serially; all slots run in parallel.
+        // Workers stay alive across jobs — WASM init happens once per worker, not per image.
+        await Promise.all(bsWorkers.map(async (worker) => {
+          while (bsQueue.length > 0) {
+            const job = bsQueue.shift();
+            if (job) await runBsJobOnWorker(worker, job);
+          }
+        }));
+      } finally {
+        bsWorkers.forEach(w => w.terminate());
+        URL.revokeObjectURL(bsWorkerUrl);
+        // Immediately re-warm for the next Convert click.
+        scheduleWarmUp();
+      }
+
+      finalizeStatsTracking();
+      setUIBusy(false);
+      if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
+      return;
+    }
 
     const jobs = selectedFiles.map((file, index) => ({
       file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
@@ -1163,89 +1600,40 @@
     if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
   });
 
-  // ── Batch Quality: all std quality presets × current format ────────────────
-  batchQualityBtn.addEventListener('click', async () => {
-    if (selectedFiles.length === 0) return;
-    const targetMime = formatSelect.value;
-    const targetExt  = mimeToExt(targetMime);
-    const { targetEffort, maxThreads, modeResize, valResize, targetW, targetH, strategyFit } = getConversionParams();
-    const presets = ['q90', 'q80', 'q50', 'q30', 'q15'];
-
-    const jobs = [];
-    selectedFiles.forEach((file, index) => {
-      presets.forEach(qLevel => {
-        const rawQuality = qualityValues[qLevel];
-        const baseName   = file.name.substring(0, file.name.lastIndexOf('.'));
-        const outputName = `${baseName}-${qLevel}.${targetExt}`;
-        jobs.push({
-          file, index, targetMime, targetExt, qLevel, rawQuality, targetEffort,
-          modeResize, valResize, targetW, targetH, strategyFit,
-          updateCard: false, outputName
-        });
-      });
-    });
-
-    setUIBusy(true);
-    convertedFiles = [];
-    showBatchProgress(0, jobs.length);
-
-    await runConversionQueue(jobs, maxThreads, (done, total) => showBatchProgress(done, total));
-
-    setUIBusy(false);
-    hideBatchProgress();
-    if (convertedFiles.length > 0) await triggerBatchZip('batch_qualities.zip');
-  });
-
-  // ── Batch Format: all formats × current quality ────────────────────────────
-  batchFormatBtn.addEventListener('click', async () => {
-    if (selectedFiles.length === 0) return;
-    const qLevel     = qualitySelect.value;
-    const rawQuality = qualityValues[qLevel];
-    const { targetEffort, maxThreads, modeResize, valResize, targetW, targetH, strategyFit } = getConversionParams();
-
-    const formats = [
-      { mime: 'image/webp',    ext: 'webp', label: 'webp'    },
-      { mime: 'image/avif',    ext: 'avif', label: 'avif'    },
-      { mime: 'image/mozjpeg', ext: 'jpg',  label: 'mozjpeg' },
-      { mime: 'image/jpeg',    ext: 'jpg',  label: 'jpeg'    },
-      { mime: 'image/png',     ext: 'png',  label: 'png'     },
-    ];
-
-    const jobs = [];
-    selectedFiles.forEach((file, index) => {
-      formats.forEach(({ mime, ext, label }) => {
-        const baseName   = file.name.substring(0, file.name.lastIndexOf('.'));
-        const outputName = `${baseName}-${label}.${ext}`;
-        jobs.push({
-          file, index, targetMime: mime, targetExt: ext, qLevel, rawQuality, targetEffort,
-          modeResize, valResize, targetW, targetH, strategyFit,
-          updateCard: false, outputName
-        });
-      });
-    });
-
-    setUIBusy(true);
-    convertedFiles = [];
-    showBatchProgress(0, jobs.length);
-
-    await runConversionQueue(jobs, maxThreads, (done, total) => showBatchProgress(done, total));
-
-    setUIBusy(false);
-    hideBatchProgress();
-    if (convertedFiles.length > 0) await triggerBatchZip('batch_formats.zip');
-  });
 
   // ── Shared queue runner ─────────────────────────────────────────────────────
   async function runConversionQueue(jobs, maxThreads, onProgress = null) {
-    // Build the worker blob once per batch — WASM codecs load once per worker, not per job
-    const codecMaps = `
-      const avifCqMap   = ${JSON.stringify(avifCqMapData)};
-      const webpQualityMap  = ${JSON.stringify(webpQualityData)};
-      const mozQualityMap   = ${JSON.stringify(mozQualityData)};
-    `;
-    const workerCode = codecMaps + document.getElementById('worker-script').textContent;
-    const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(workerBlob);
+    // Attempt to claim a pre-warmed pool (WASM already compiled).
+    // Falls back to spawning fresh workers if the pool isn't ready yet.
+    const claimed = conversionPool.claim();
+
+    let workerUrl, workers, ownUrl;
+    if (claimed && claimed.workers.length >= Math.min(maxThreads, jobs.length)) {
+      // Hot path: reuse pre-warmed workers — no WASM init cost at click time.
+      workerUrl = claimed.url;
+      workers   = claimed.workers.slice(0, Math.min(maxThreads, jobs.length));
+      // Excess warm workers (if pool was larger than needed) are terminated now.
+      claimed.workers.slice(workers.length).forEach(w => w.terminate());
+      ownUrl = false; // URL lifecycle handed back via release()
+    } else {
+      // Cold path: pool not ready — spawn fresh workers as before.
+      if (claimed) {
+        // Partial claim; discard it cleanly.
+        claimed.workers.forEach(w => w.terminate());
+        URL.revokeObjectURL(claimed.url);
+      }
+      const codecMaps = `
+        const avifCqMap      = ${JSON.stringify(avifCqMapData)};
+        const webpQualityMap = ${JSON.stringify(webpQualityData)};
+        const mozQualityMap  = ${JSON.stringify(mozQualityData)};
+      `;
+      const workerCode = codecMaps + document.getElementById('worker-script').textContent;
+      const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+      workerUrl = URL.createObjectURL(workerBlob);
+      const poolSize = Math.min(maxThreads, jobs.length);
+      workers = Array.from({ length: poolSize }, () => new Worker(workerUrl, { type: 'module' }));
+      ownUrl = true;
+    }
 
     let doneCount = 0;
     const total = jobs.length;
@@ -1318,10 +1706,6 @@
       });
     }
 
-    // Create a fixed pool — capped at job count so no idle workers are spawned
-    const poolSize = Math.min(maxThreads, total);
-    const workers  = Array.from({ length: poolSize }, () => new Worker(workerUrl, { type: 'module' }));
-
     // Each slot pulls jobs from the shared queue serially; all slots run in parallel
     try {
       await Promise.all(workers.map(async (worker) => {
@@ -1331,9 +1715,12 @@
         }
       }));
     } finally {
-      // Always clean up — prevents blob URL leak if the queue errors mid-batch
+      // Terminate workers and revoke URL.
+      // Then immediately warm a fresh pool for the next Convert click.
       workers.forEach(w => w.terminate());
-      URL.revokeObjectURL(workerUrl);
+      if (ownUrl) URL.revokeObjectURL(workerUrl);
+      else URL.revokeObjectURL(workerUrl); // claimed url — always revoke after use
+      scheduleWarmUp();
     }
   }
 
@@ -1434,8 +1821,6 @@
   // ── Batch helpers ───────────────────────────────────────────────────────────
   function setUIBusy(busy) {
     convertBtn.disabled = busy || selectedFiles.length === 0;
-    batchQualityBtn.disabled = busy || selectedFiles.length === 0;
-    batchFormatBtn.disabled = busy || selectedFiles.length === 0;
     imageInput.disabled = busy;
     if (busy) downloadZipBtn.classList.add('d-none');
   }
