@@ -193,6 +193,9 @@
 
     #matrixContainer .badge { font-size: 0.8rem !important; font-weight: 700 !important; padding: 4px !important; }
 
+    /* Reusable badge style for stat/info line badges outside #matrixContainer */
+    .stat-badge { display: inline-block; font-size: 0.8rem; font-weight: 700; padding: 4px; border-radius: 3px; vertical-align: middle; color: #fff; }
+
     .nav-stats-container {
       font-size: 0.95rem;
       display: flex;
@@ -533,13 +536,13 @@
         </label>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <span class="size-pill" data-bytes="0">None</span>
-          <span class="size-pill" data-bytes="131072">128 KB</span>
-          <span class="size-pill" data-bytes="262144">256 KB</span>
-          <span class="size-pill" data-bytes="524288">512 KB</span>
-          <span class="size-pill" data-bytes="1048576">1 MB</span>
+          <span class="size-pill" data-bytes="131072">128 KiB</span>
+          <span class="size-pill" data-bytes="262144">256 KiB</span>
+          <span class="size-pill" data-bytes="524288">512 KiB</span>
+          <span class="size-pill" data-bytes="1048576">1 MiB</span>
           <div class="d-flex align-items-center gap-1">
-            <input type="number" class="form-control form-control-sm" id="maxSizeCustomInput" placeholder="KB" min="1" title="Custom max file size in KB">
-            <span style="font-size:0.8rem; color:var(--dm-text-muted);">KB</span>
+            <input type="number" class="form-control form-control-sm" id="maxSizeCustomInput" placeholder="KiB" min="1" title="Custom max file size in KiB (1 KiB = 1024 B)">
+            <span style="font-size:0.8rem; color:var(--dm-text-muted);">KiB</span>
           </div>
         </div>
       </div>
@@ -695,15 +698,13 @@
       if (targetMime === 'image/avif') {
         // cqLevel: 0 = best, 63 = worst — values injected from QUALITY_PRESETS at runtime
         const cqLevel = avifCqMap[qLevel] !== undefined ? avifCqMap[qLevel] : 36;
-        const avifSpeedMap = [10, 8, 6, 3, 1];
-        const avifSpeed = avifSpeedMap[targetEffort] !== undefined ? avifSpeedMap[targetEffort] : 6;
+        const avifSpeed = AVIF_SPEED_MAP[targetEffort] !== undefined ? AVIF_SPEED_MAP[targetEffort] : 6;
 
         outputBuffer = await avifCodec.encode(imageData, { cqLevel, cqAlphaLevel: -1, speed: avifSpeed });
       } else if (targetMime === 'image/webp') {
         // WebP quality: 0 = worst, 100 = best — values injected from QUALITY_PRESETS at runtime
         const webpQuality = webpQualityMap[qLevel] !== undefined ? webpQualityMap[qLevel] : 50;
-        const webpEffortMap = [0, 1, 2, 4, 5];
-        const webpEffort = webpEffortMap[targetEffort] !== undefined ? webpEffortMap[targetEffort] : 2;
+        const webpEffort = WEBP_EFFORT_MAP[targetEffort] !== undefined ? WEBP_EFFORT_MAP[targetEffort] : 2;
 
         outputBuffer = await webpCodec.encode(imageData, { quality: webpQuality, method: webpEffort });
       } else if (targetMime === 'image/mozjpeg') {
@@ -744,14 +745,12 @@
   async function encodeOnce(imageData, targetMime, preset, targetEffort) {
     if (targetMime === 'image/avif') {
       const cqLevel = avifCqMap[preset.key] !== undefined ? avifCqMap[preset.key] : 36;
-      const avifSpeedMap = [10, 8, 6, 3, 1];
-      const avifSpeed = avifSpeedMap[targetEffort] !== undefined ? avifSpeedMap[targetEffort] : 6;
+      const avifSpeed = AVIF_SPEED_MAP[targetEffort] !== undefined ? AVIF_SPEED_MAP[targetEffort] : 6;
       return avifCodec.encode(imageData, { cqLevel, cqAlphaLevel: -1, speed: avifSpeed });
     }
     if (targetMime === 'image/webp') {
       const webpQuality = webpQualityMap[preset.key] !== undefined ? webpQualityMap[preset.key] : 50;
-      const webpEffortMap = [0, 1, 2, 4, 5];
-      const webpEffort = webpEffortMap[targetEffort] !== undefined ? webpEffortMap[targetEffort] : 2;
+      const webpEffort = WEBP_EFFORT_MAP[targetEffort] !== undefined ? WEBP_EFFORT_MAP[targetEffort] : 2;
       return webpCodec.encode(imageData, { quality: webpQuality, method: webpEffort });
     }
     if (targetMime === 'image/mozjpeg') {
@@ -1003,25 +1002,28 @@
   const conversionPool  = new WorkerPool();
   const binsearchPool   = new WorkerPool();
 
-  // Builds the blob URL for the regular conversion worker (codec maps prepended).
-  function buildConversionWorkerUrl() {
-    const codecMaps = `
+  // Single source for all injected constants shared by both worker types.
+  // Also includes the codec speed maps (fix #2) so the worker scripts don't
+  // need to redeclare them.
+  function buildCodecMaps() {
+    return `
       const avifCqMap      = ${JSON.stringify(avifCqMapData)};
       const webpQualityMap = ${JSON.stringify(webpQualityData)};
       const mozQualityMap  = ${JSON.stringify(mozQualityData)};
+      const AVIF_SPEED_MAP = [10, 8, 6, 3, 1];
+      const WEBP_EFFORT_MAP = [0, 1, 2, 4, 5];
     `;
-    const code = codecMaps + document.getElementById('worker-script').textContent;
+  }
+
+  // Builds the blob URL for the regular conversion worker (codec maps prepended).
+  function buildConversionWorkerUrl() {
+    const code = buildCodecMaps() + document.getElementById('worker-script').textContent;
     return URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
   }
 
   // Builds the blob URL for the binsearch worker.
   function buildBinsearchWorkerUrl() {
-    const codecMaps = `
-      const avifCqMap      = ${JSON.stringify(avifCqMapData)};
-      const webpQualityMap = ${JSON.stringify(webpQualityData)};
-      const mozQualityMap  = ${JSON.stringify(mozQualityData)};
-    `;
-    const code = codecMaps + document.getElementById('binsearch-worker-script').textContent;
+    const code = buildCodecMaps() + document.getElementById('binsearch-worker-script').textContent;
     return URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
   }
 
@@ -1120,8 +1122,8 @@
     statTotalTime.innerText = '0.0s';
     updateSizeStat();
     
-    statRemainingContainer.classList.remove('d-none');
-    navStatsTracker.classList.remove('d-none');
+    setVisible(statRemainingContainer, true);
+    setVisible(navStatsTracker, true);
     
     clearInterval(statsTimerInterval);
     batchStartTime = performance.now();
@@ -1157,14 +1159,14 @@
     clearInterval(statsTimerInterval);
     const finalElapsed = ((performance.now() - batchStartTime) / 1000).toFixed(2);
     statTotalTime.innerText = `${finalElapsed}s`;
-    statRemainingContainer.classList.add('d-none'); 
+    setVisible(statRemainingContainer, false);
   }
 
   // Resets the card workflow metrics when an option changes
   function resetConversionState() {
     convertedFiles = [];
-    downloadZipBtn.classList.add('d-none');
-    navStatsTracker.classList.add('d-none');
+    setVisible(downloadZipBtn, false);
+    setVisible(navStatsTracker, false);
     clearInterval(statsTimerInterval);
     hideBatchProgress();
 
@@ -1176,20 +1178,38 @@
       
       if (statusContainer) {
         statusContainer.innerHTML = `<span class="badge bg-secondary status-badge">Waiting</span>`;
-        statusContainer.classList.remove('d-none');
+        setVisible(statusContainer, true);
       }
       if (weightContainer) weightContainer.innerHTML = '';
       if (timeElement) timeElement.innerText = '...';
       const memEl = document.getElementById(`mem-${index}`);
       if (memEl) memEl.innerHTML = formatBytes(selectedFiles[index].size);
       setFormatBadge(index, selectedFiles[index].name);
+      // Revoke the converted-file download blob URL
       if (downloadBtn) {
-        // Revoke the old object URL to avoid memory leaks
         if (downloadBtn.href && downloadBtn.href.startsWith('blob:')) {
+          if (window.evictBlobCache) window.evictBlobCache(downloadBtn.href);
           URL.revokeObjectURL(downloadBtn.href);
         }
-        downloadBtn.classList.add('d-none');
+        setVisible(downloadBtn, false);
         downloadBtn.removeAttribute('href');
+      }
+      // Fix 1: also revoke the thumbnail blob URL created in createImageCard.
+      // handleFiles revokes these when a new batch is loaded, but resetConversionState
+      // is called on every option change without reloading files, so without this
+      // each Convert click leaks the previous thumbnail blob URLs.
+      const thumbImg = document.getElementById(`preview-img-${index}`);
+      if (thumbImg && thumbImg.src && thumbImg.src.startsWith('blob:')) {
+        const oldSrc = thumbImg.src;
+        const newUrl = URL.createObjectURL(selectedFiles[index]);
+        thumbImg.src = newUrl;
+        URL.revokeObjectURL(oldSrc);
+        // Fix 11: reassign the rotation transform after changing src.
+        // Setting src causes the browser to repaint the element, which resets
+        // any inline transform, so the thumbnail snaps back to 0° even though
+        // fileRotations[index] still holds the correct angle.
+        const angle = fileRotations[index] || 0;
+        if (angle) thumbImg.style.transform = `rotate(${angle}deg)`;
       }
       const previewBtn = document.getElementById(`preview-btn-${index}`);
       if (previewBtn) {
@@ -1199,7 +1219,7 @@
         delete cleanBtn.dataset.weightText;
         delete cleanBtn.dataset.isBigger;
         delete cleanBtn.dataset.convFmt;
-        cleanBtn.classList.add('d-none');
+        setVisible(cleanBtn, false);
         previewBtn.replaceWith(cleanBtn);
       }
     });
@@ -1215,10 +1235,13 @@
     exactWidth.value = localStorage.getItem('img_exactW') || DEFAULT_CONFIG.exactW;
     exactHeight.value = localStorage.getItem('img_exactH') || DEFAULT_CONFIG.exactH;
     exactFitting.value = localStorage.getItem('img_exactFit') || DEFAULT_CONFIG.exactFit;
-    ssimCheck.checked = (localStorage.getItem('img_ssim') ?? DEFAULT_CONFIG.ssim) !== 'false';
-    fineConfigToggle.checked = (localStorage.getItem('img_fineConfig') ?? DEFAULT_CONFIG.fineConfig) !== 'false';
+    // Fix 4: use explicit === 'true' rather than !== 'false' so that any
+    // unexpected stored value (empty string, null, garbage) safely defaults to
+    // OFF instead of accidentally enabling a toggle.
+    ssimCheck.checked        = (localStorage.getItem('img_ssim')       ?? DEFAULT_CONFIG.ssim)       === 'true';
+    fineConfigToggle.checked = (localStorage.getItem('img_fineConfig') ?? DEFAULT_CONFIG.fineConfig) === 'true';
     const guessGameToggle = document.getElementById('guessGameToggle');
-    if (guessGameToggle) guessGameToggle.checked = (localStorage.getItem('img_guessGame') ?? DEFAULT_CONFIG.guessGame) !== 'false';
+    if (guessGameToggle) guessGameToggle.checked = (localStorage.getItem('img_guessGame') ?? DEFAULT_CONFIG.guessGame) === 'true';
 
     // Quality select is empty until toggleFineQualityOptions populates it;
     // pass the saved value so it can set the correct option after rendering.
@@ -1253,6 +1276,7 @@
   function setVisible(el, visible) {
     el.classList.toggle('d-none', !visible);
   }
+  window.setVisible = setVisible;
 
   function toggleQualityUI() {
     const fmt = formatSelect.value;
@@ -1284,17 +1308,17 @@
   function toggleResizeUI() {
     const mode = resizeMode.value;
     
-    resizeValueContainer.classList.add('d-none');
-    exactWidthContainer.classList.add('d-none');
-    exactHeightContainer.classList.add('d-none');
-    exactFittingContainer.classList.add('d-none');
+    setVisible(resizeValueContainer, false);
+    setVisible(exactWidthContainer, false);
+    setVisible(exactHeightContainer, false);
+    setVisible(exactFittingContainer, false);
 
     if (mode === 'exact') {
-      exactWidthContainer.classList.remove('d-none');
-      exactHeightContainer.classList.remove('d-none');
-      exactFittingContainer.classList.remove('d-none');
+      setVisible(exactWidthContainer, true);
+      setVisible(exactHeightContainer, true);
+      setVisible(exactFittingContainer, true);
     } else if (mode !== 'none') {
-      resizeValueContainer.classList.remove('d-none');
+      setVisible(resizeValueContainer, true);
       if (mode === 'scale') resizeValueLabel.innerText = "Scale Percentage (%)";
       if (mode === 'width') resizeValueLabel.innerText = "Max Width (px)";
       if (mode === 'height') resizeValueLabel.innerText = "Max Height (px)";
@@ -1321,13 +1345,7 @@
   toggleQualityUI();
 
   // Show nav bar on load if guess game is enabled and has score history
-  (function() {
-    const ggOn    = (localStorage.getItem('img_guessGame') ?? 'false') !== 'false';
-    const ggTotal = parseInt(localStorage.getItem('img_ggTotal') || '0', 10);
-    if (ggOn && ggTotal > 0) {
-      document.getElementById('navStatsTracker').classList.remove('d-none');
-    }
-  })();
+  syncGuessGameNavBar();
   
   // Menu configuration change hooks
   formatSelect.addEventListener('change', () => { toggleSpeedUI(); toggleQualityUI(); saveConfig(); resetConversionState(); });
@@ -1345,11 +1363,7 @@
   if (guessGameToggleEl) guessGameToggleEl.addEventListener('change', () => {
     saveConfig();
     if (typeof window.renderGuessScore === 'function') window.renderGuessScore();
-    // Show nav bar if guess game has history, hide if not and no conversion running
-    const total = parseInt(localStorage.getItem('img_ggTotal') || '0', 10);
-    if (guessGameToggleEl.checked && total > 0) {
-      document.getElementById('navStatsTracker').classList.remove('d-none');
-    }
+    // renderGuessScore calls syncGuessGameNavBar internally
   });
   rotateAllMode.addEventListener('change', () => {
     applyGlobalRotation();
@@ -1382,7 +1396,13 @@
   maxSizeCustomInput.addEventListener('input', () => {
     const val = parseFloat(maxSizeCustomInput.value);
     if (!isNaN(val) && val > 0) {
-      setMaxFileSize(Math.round(val * 1024));
+      // Fix 15: Math.round(val * 1024) can produce 0 for very small fractional
+      // KiB values (e.g. 0.0004 KiB → 0.4 bytes → rounds to 0), which silently
+      // calls setMaxFileSize(0) and disables the limit with no user feedback.
+      // Clamp to a minimum of 1 byte so the limit is always enforced when the
+      // user has typed a positive number, however small.
+      const bytes = Math.max(1, Math.round(val * 1024));
+      setMaxFileSize(bytes);
     } else if (maxSizeCustomInput.value === '') {
       setMaxFileSize(0);
     }
@@ -1407,13 +1427,16 @@
       const imgEl = document.getElementById(`preview-img-${index}`);
       if (imgEl && imgEl.src && imgEl.src.startsWith('blob:')) URL.revokeObjectURL(imgEl.src);
       const downloadBtn = document.getElementById(`download-btn-${index}`);
-      if (downloadBtn && downloadBtn.href && downloadBtn.href.startsWith('blob:')) URL.revokeObjectURL(downloadBtn.href);
+      if (downloadBtn && downloadBtn.href && downloadBtn.href.startsWith('blob:')) {
+        if (window.evictBlobCache) window.evictBlobCache(downloadBtn.href);
+        URL.revokeObjectURL(downloadBtn.href);
+      }
     });
 
     selectedFiles = filtered;
     setUIBusy(false);
-    downloadZipBtn.classList.add('d-none');
-    navStatsTracker.classList.add('d-none');
+    setVisible(downloadZipBtn, false);
+    setVisible(navStatsTracker, false);
     convertedFiles = [];
     fileRotations = {};
     matrixContainer.innerHTML = '';
@@ -1431,8 +1454,12 @@
   }
 
   dropZone.addEventListener('click', (e) => {
-    if (e.target.classList.contains('drop-browse') || e.target === dropZone ||
-        e.target.closest('#dropZone')) {
+    // Fix 13: the original guard had three conditions, but the third —
+    // e.target.closest('#dropZone') — is always true for any click inside the
+    // zone, making the other two unreachable.  Simplify to just that one check.
+    // If a child element is ever added that should NOT open the picker (e.g. a
+    // clear button), give it a 'no-browse' class and add: if (e.target.closest('.no-browse')) return;
+    if (e.target.closest('#dropZone')) {
       imageInput.click();
     }
   });
@@ -1456,6 +1483,11 @@
   function mimeToExt(mime) {
     if (mime === 'image/mozjpeg') return 'jpg';
     return mime.split('/')[1].replace('jpeg', 'jpg');
+  }
+
+  // canvas.toBlob / new Blob don't recognise 'image/mozjpeg' — normalise to standard mime.
+  function normalizeMime(mime) {
+    return mime === 'image/mozjpeg' ? 'image/jpeg' : mime;
   }
 
   function getConversionParams() {
@@ -1499,12 +1531,9 @@
         bsClaimed.workers.slice(bsNeed).forEach(w => w.terminate());
       } else {
         // Cold path — pool not ready; discard partial claim and spawn fresh.
-        if (bsClaimed) {
-          bsClaimed.workers.forEach(w => w.terminate());
-          URL.revokeObjectURL(bsClaimed.url);
-        }
-        bsWorkerUrl = buildBinsearchWorkerUrl();
-        bsWorkers   = Array.from({ length: bsNeed }, () => new Worker(bsWorkerUrl, { type: 'module' }));
+        const fresh = spawnFreshPool(buildBinsearchWorkerUrl, bsNeed, bsClaimed);
+        bsWorkerUrl = fresh.url;
+        bsWorkers   = fresh.workers;
       }
 
       // Build the job queue — one entry per image
@@ -1512,53 +1541,63 @@
 
       // Runs one binsearch job on a persistent worker; the worker is NOT terminated
       // afterward — it stays alive and receives the next job from the queue.
-      function runBsJobOnWorker(worker, { file, index }) {
-        return new Promise(async (resolve) => {
-          updateCardStatus(index, 'processing');
-          const imageStartTime = performance.now();
-          try {
-            // Decode + resize + rotate on the main thread (requires DOM/canvas)
-            const imageData = await decodeResizeRotateCanvas(
-              file, fileRotations[index] || 0,
-              modeResize, valResize, targetW, targetH, strategyFit
+      //
+      // Fix 9: was `new Promise(async (resolve) => { ... resolve(); })` — the
+      // outer resolve() fired synchronously after the try/catch block exited, but
+      // the inner encode promise used .then() chaining, so finalizeBatchFile and
+      // incrementStat ran in a later microtask *after* resolve() had already
+      // settled the outer promise.  The queue loop therefore handed the same
+      // worker its next job before the previous job's finalization had completed,
+      // which could corrupt worker.onmessage mid-flight and silently drop results.
+      // Rewritten as a plain async function so every step is properly sequenced.
+      async function runBsJobOnWorker(worker, { file, index }) {
+        updateCardStatus(index, 'processing');
+        const imageStartTime = performance.now();
+        try {
+          // Decode + resize + rotate on the main thread (requires DOM/canvas)
+          const imageData = await decodeResizeRotateCanvas(
+            file, fileRotations[index] || 0,
+            modeResize, valResize, targetW, targetH, strategyFit
+          );
+
+          // Send job to the persistent worker and await its reply before continuing.
+          const result = await new Promise((resolveEncode, rejectEncode) => {
+            worker.onmessage = (e) => {
+              if (e.data.type === 'BS_SUCCESS') resolveEncode(e.data);
+              else rejectEncode(new Error(e.data.error || 'BS_ERROR'));
+            };
+            worker.onerror = (err) => rejectEncode(err);
+            const transferBuf = imageData.data.buffer;
+            worker.postMessage(
+              { imageData, targetMime, presets: QUALITY_PRESETS, maxBytes, targetEffort, index },
+              [transferBuf]
             );
+          });
 
-            // Send job to the persistent worker; resolve when it replies
-            await new Promise((resolveEncode, rejectEncode) => {
-              worker.onmessage = (e) => {
-                if (e.data.type === 'BS_SUCCESS') resolveEncode(e.data);
-                else rejectEncode(new Error(e.data.error || 'BS_ERROR'));
-              };
-              worker.onerror = (err) => rejectEncode(err);
-              const transferBuf = imageData.data.buffer;
-              worker.postMessage(
-                { imageData, targetMime, presets: QUALITY_PRESETS, maxBytes, targetEffort, index },
-                [transferBuf]
-              );
-            }).then((result) => {
-              finalizeBatchFile(
-                result.buffer, result.width, result.height,
-                file, index, targetExt, targetMime, imageStartTime, true, null
-              );
-              incrementStat(true);
+          // Finalize only after the worker has replied — guaranteed by the await above.
+          finalizeBatchFile(
+            result.buffer, result.width, result.height,
+            file, index, targetExt, targetMime, imageStartTime, true, null
+          );
+          incrementStat(true);
 
-              const weightContainer = document.getElementById(`weight-container-${index}`);
-              if (weightContainer) {
-                const qLabel = QUALITY_PRESETS.find(p => p.key === result.qLevel)?.label || result.qLevel;
-                const qBadge = document.createElement('span');
-                qBadge.className = 'badge';
-                qBadge.style.cssText = 'font-size:0.75rem; font-weight:700; padding:3px 5px; background:#6f42c1; color:#fff;';
-                qBadge.title = `Binary search found: ${qLabel}`;
-                qBadge.textContent = result.qLevel.replace('q', 'Q') + '%';
-                weightContainer.appendChild(qBadge);
-              }
-            });
-          } catch {
-            updateCardStatus(index, 'error');
-            incrementStat(false);
+          const weightContainer = document.getElementById(`weight-container-${index}`);
+          if (weightContainer) {
+            const qLabel = QUALITY_PRESETS.find(p => p.key === result.qLevel)?.label || result.qLevel;
+            const qBadge = document.createElement('span');
+            qBadge.className = 'badge';
+            qBadge.style.cssText = 'font-size:0.75rem; font-weight:700; padding:3px 5px; background:#6f42c1; color:#fff;';
+            qBadge.title = `Binary search found: ${qLabel}`;
+            // Fix 8: show just the quality key (e.g. "Q65") without a "%" suffix.
+            // The file-size percentage badge is already shown separately; appending
+            // "%" here made the two badges look identical but mean different things.
+            qBadge.textContent = result.qLevel.replace('q', 'Q');
+            weightContainer.appendChild(qBadge);
           }
-          resolve();
-        });
+        } catch {
+          updateCardStatus(index, 'error');
+          incrementStat(false);
+        }
       }
 
       try {
@@ -1579,7 +1618,7 @@
 
       finalizeStatsTracking();
       setUIBusy(false);
-      if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
+      if (convertedFiles.length > 0) setVisible(downloadZipBtn, true);
       return;
     }
 
@@ -1597,9 +1636,21 @@
 
     finalizeStatsTracking();
     setUIBusy(false);
-    if (convertedFiles.length > 0) downloadZipBtn.classList.remove('d-none');
+    if (convertedFiles.length > 0) setVisible(downloadZipBtn, true);
   });
 
+
+  // ── Worker spawn helpers ────────────────────────────────────────────────────
+  // Discards a partial pool claim and spawns a fresh set of workers from buildFn.
+  function spawnFreshPool(buildFn, size, partialClaim) {
+    if (partialClaim) {
+      partialClaim.workers.forEach(w => w.terminate());
+      URL.revokeObjectURL(partialClaim.url);
+    }
+    const url = buildFn();
+    const workers = Array.from({ length: size }, () => new Worker(url, { type: 'module' }));
+    return { url, workers };
+  }
 
   // ── Shared queue runner ─────────────────────────────────────────────────────
   async function runConversionQueue(jobs, maxThreads, onProgress = null) {
@@ -1616,22 +1667,10 @@
       claimed.workers.slice(workers.length).forEach(w => w.terminate());
       ownUrl = false; // URL lifecycle handed back via release()
     } else {
-      // Cold path: pool not ready — spawn fresh workers as before.
-      if (claimed) {
-        // Partial claim; discard it cleanly.
-        claimed.workers.forEach(w => w.terminate());
-        URL.revokeObjectURL(claimed.url);
-      }
-      const codecMaps = `
-        const avifCqMap      = ${JSON.stringify(avifCqMapData)};
-        const webpQualityMap = ${JSON.stringify(webpQualityData)};
-        const mozQualityMap  = ${JSON.stringify(mozQualityData)};
-      `;
-      const workerCode = codecMaps + document.getElementById('worker-script').textContent;
-      const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
-      workerUrl = URL.createObjectURL(workerBlob);
-      const poolSize = Math.min(maxThreads, jobs.length);
-      workers = Array.from({ length: poolSize }, () => new Worker(workerUrl, { type: 'module' }));
+      // Cold path: pool not ready — spawn fresh workers.
+      const fresh = spawnFreshPool(buildConversionWorkerUrl, Math.min(maxThreads, jobs.length), claimed);
+      workerUrl = fresh.url;
+      workers   = fresh.workers;
       ownUrl = true;
     }
 
@@ -1652,6 +1691,10 @@
         const rotation = fileRotations[index] || 0;
         const isNativeTarget = targetMime === 'image/png' || targetMime === 'image/jpeg';
 
+        // Shared decode closure — same args used in both the native-target path
+        // and the NEED_CANVAS_DECODE handler.
+        const decodeFile = () => decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
+
         const finish = (success) => {
           doneCount++;
           if (onProgress) onProgress(doneCount, total);
@@ -1664,10 +1707,8 @@
         if (isNativeTarget) {
           (async () => {
             try {
-              const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-              // Normalize mozjpeg → jpeg: canvas.toBlob doesn't recognise 'image/mozjpeg'
-              const canvasMime = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
-              const outBuf  = await encodeWithCanvas(imgData, canvasMime, rawQuality / 100);
+              const imgData = await decodeFile();
+              const outBuf  = await encodeWithCanvas(imgData, normalizeMime(targetMime), rawQuality / 100);
               finalizeBatchFile(outBuf, imgData.width, imgData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
               finish(true);
             } catch { finish(false); }
@@ -1679,12 +1720,22 @@
           const msg = e.data;
           if (msg.type === 'NEED_CANVAS_DECODE') {
             try {
-              const imgData = await decodeResizeRotateCanvas(file, rotation, modeResize, valResize, targetW, targetH, strategyFit);
-              worker.postMessage({ type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index });
+              const imgData = await decodeFile();
+              // Fix 10: transfer imgData.data.buffer instead of cloning it.
+              // Without the transfer list the entire pixel buffer is structured-cloned
+              // (copied), wasting memory and CPU proportional to image size.
+              // The binsearch path already did this correctly (line ~1554).
+              worker.postMessage(
+                { type: 'CONTINUE_ENCODE', imageData: imgData, targetMime, qLevel, rawQuality, targetEffort, index },
+                [imgData.data.buffer]
+              );
             } catch { if (updateCard) updateCardStatus(index, 'error'); finish(false); }
           } else if (msg.type === 'NEED_CANVAS_ENCODE') {
             try {
-              const outBuf = await encodeWithCanvas(msg.imageData, targetMime, rawQuality / 100);
+              // Fix 3: normalize mime (e.g. 'image/mozjpeg' → 'image/jpeg') so
+              // canvas.toBlob receives a MIME type browsers actually recognise.
+              // Without this, mozjpeg jobs silently fell back to PNG output.
+              const outBuf = await encodeWithCanvas(msg.imageData, normalizeMime(targetMime), rawQuality / 100);
               finalizeBatchFile(outBuf, msg.imageData.width, msg.imageData.height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName);
               finish(true);
             } catch { finish(false); }
@@ -1695,6 +1746,15 @@
             if (updateCard) updateCardStatus(index, 'error');
             finish(false);
           }
+        };
+        // Fix 12: handle uncaught worker exceptions (e.g. WASM OOM, codec crash).
+        // Without this, an error event fires on the worker but finish() is never
+        // called, so resolveJob() never fires and the Promise.all in
+        // runConversionQueue hangs indefinitely, leaving the UI spinner stuck
+        // and convertBtn permanently disabled.
+        worker.onerror = () => {
+          if (updateCard) updateCardStatus(index, 'error');
+          finish(false);
         };
 
         file.arrayBuffer()
@@ -1716,10 +1776,15 @@
       }));
     } finally {
       // Terminate workers and revoke URL.
-      // Then immediately warm a fresh pool for the next Convert click.
+      // Fix 5: terminate() is synchronous — all workers are fully stopped before
+      // scheduleWarmUp() runs, so the new pool's warmUp() call cannot race with
+      // a still-running worker from the previous batch.  The URL is safe to
+      // revoke (cold path) or leave to the pool (hot path) only after terminate().
       workers.forEach(w => w.terminate());
+      // Only revoke the URL when we own it (cold path). Pool-owned URLs are
+      // managed by WorkerPool._teardown() / warmUp() — revoking them here would
+      // break the pool's internal state on the next warm-up cycle.
       if (ownUrl) URL.revokeObjectURL(workerUrl);
-      else URL.revokeObjectURL(workerUrl); // claimed url — always revoke after use
       scheduleWarmUp();
     }
   }
@@ -1767,7 +1832,6 @@
 
   // ── File finalizer (handles both card mode and batch/silent mode) ───────────
   function finalizeBatchFile(buffer, width, height, file, index, targetExt, targetMime, imageStartTime, updateCard, outputName) {
-    const computedRatio = parseFloat((width / height).toFixed(2));
     if (updateCard) {
       const resEl = document.getElementById(`res-${index}`);
       if (resEl) {
@@ -1775,23 +1839,23 @@
         if (!resEl.dataset.origRes) {
           const imgEl = document.getElementById(`preview-img-${index}`);
           if (imgEl && imgEl.naturalWidth) {
-            resEl.dataset.origRes = `${imgEl.naturalWidth}x${imgEl.naturalHeight}`;
+            resEl.dataset.origRes   = fmtResolution(imgEl.naturalWidth, imgEl.naturalHeight);
             resEl.dataset.origRatio = parseFloat((imgEl.naturalWidth / imgEl.naturalHeight).toFixed(2));
           }
         }
-        const origRes = resEl.dataset.origRes || '';
-        const origRatio = resEl.dataset.origRatio || '';
-        const newRes = `${width}x${height}`;
+        const origRes  = resEl.dataset.origRes || '';
+        const newRes   = fmtResolution(width, height);
         if (origRes && origRes !== newRes) {
-          resEl.innerHTML = `${origRes} (${origRatio}) <span style="color:#6c757d;">\u2192</span> <span style="font-weight:600;">${newRes} px (${computedRatio})</span>`;
+          const origRatio = resEl.dataset.origRatio || '';
+          resEl.innerHTML = `${origRes} (${origRatio}) <span style="color:#6c757d;">\u2192</span> <span style="font-weight:600;">${newRes}</span>`;
         } else {
-          resEl.innerText = `${newRes} px (${computedRatio})`;
+          resEl.innerText = newRes;
         }
       }
       setFormatBadge(index, file.name, targetExt);
     }
 
-    const blobMime = targetMime === 'image/mozjpeg' ? 'image/jpeg' : targetMime;
+    const blobMime = normalizeMime(targetMime);
     const blob = new Blob([buffer], { type: blobMime });
     const url = URL.createObjectURL(blob);
     const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
@@ -1814,7 +1878,24 @@
       globalSizeAfter += blob.size;
       updateSizeStat();
       updateCardStatus(index, 'complete', url, finalFileName, weightText, isBigger, durationSec);
-      if (ssimCheck.checked) computeAndShowSSIM(index, file, buffer, blobMime);
+      // Fix 14: skip SSIM when any resize mode is active.  computeSSIM clips
+      // both images to min(w, h) of the two, comparing the top-left crop of the
+      // full-resolution original against the entire resized output — different
+      // content, so the score is meaningless.  Only run SSIM when the output
+      // dimensions match the input (no resize, or exact-size with no actual change).
+      if (ssimCheck.checked) {
+        const resizeActive = resizeMode.value !== 'none';
+        if (resizeActive) {
+          const ssimBadge = document.getElementById(`ssim-badge-${index}`);
+          if (ssimBadge) {
+            ssimBadge.className = 'badge bg-secondary';
+            ssimBadge.textContent = 'SSIM N/A';
+            ssimBadge.title = 'SSIM skipped — input and output have different dimensions';
+          }
+        } else {
+          computeAndShowSSIM(index, file, buffer, blobMime);
+        }
+      }
     }
   }
 
@@ -1822,7 +1903,7 @@
   function setUIBusy(busy) {
     convertBtn.disabled = busy || selectedFiles.length === 0;
     imageInput.disabled = busy;
-    if (busy) downloadZipBtn.classList.add('d-none');
+    if (busy) setVisible(downloadZipBtn, false);
   }
 
   function showBatchProgress(done, total) {
@@ -1871,6 +1952,11 @@
   }
   // Expose to non-module scripts (modal)
   window.formatBytes = formatBytes;
+
+  function fmtResolution(w, h) {
+    return `${w}x${h} px (${parseFloat((w / h).toFixed(2))})`;
+  }
+  window.fmtResolution = fmtResolution;
 
   // ── Format badge helpers (input/output file type pill) ──────────────────────
   function normalizeFormatKey(mimeOrExtOrName) {
@@ -1936,9 +2022,8 @@
     matrixContainer.appendChild(col);
     
     const imgEl = col.querySelector(`#preview-img-${index}`);
-    imgEl.onload = () => { 
-      const computedRatio = parseFloat((imgEl.naturalWidth / imgEl.naturalHeight).toFixed(2));
-      document.getElementById(`res-${index}`).innerText = `${imgEl.naturalWidth}x${imgEl.naturalHeight} px (${computedRatio})`; 
+    imgEl.onload = () => {
+      document.getElementById(`res-${index}`).innerText = fmtResolution(imgEl.naturalWidth, imgEl.naturalHeight);
     };
     col.querySelector(`#rotate-btn-${index}`).addEventListener('click', () => {
       fileRotations[index] = (fileRotations[index] + 90) % 360;
@@ -1955,15 +2040,15 @@
     if (!statusContainer) return;
 
     if (state === 'processing') {
-      statusContainer.classList.remove('d-none');
+      setVisible(statusContainer, true);
       statusContainer.innerHTML = `<div class="spinner-border spinner-border-sm text-primary" style="width:0.85rem; height:0.85rem;"></div>`;
     } else if (state === 'complete') {
-      statusContainer.classList.add('d-none');
+      setVisible(statusContainer, false);
       const badgeColor = isBigger ? 'bg-danger' : 'bg-success';
-      const timeBadge = timeSec !== null ? `<span class="badge bg-primary" style="font-size: 0.8rem; font-weight: 700; padding: 4px;">${timeSec}s</span>` : '';
-      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}" style="font-size: 0.8rem; font-weight: 700; padding: 4px;">SSIM</span>` : '';
-      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}" style="font-size: 0.8rem; font-weight: 700; padding: 4px;">${weightText}</span>${ssimBadge}`;
-      downloadBtn.href = downloadUrl; downloadBtn.download = fileName; downloadBtn.classList.remove('d-none');
+      const timeBadge = timeSec !== null ? `<span class="badge bg-primary">${timeSec}s</span>` : '';
+      const ssimBadge = ssimCheck.checked ? `<span class="badge bg-secondary" id="ssim-badge-${index}">SSIM</span>` : '';
+      weightContainer.innerHTML = `${timeBadge}<span class="badge ${badgeColor}">${weightText}</span>${ssimBadge}`;
+      downloadBtn.href = downloadUrl; downloadBtn.download = fileName; setVisible(downloadBtn, true);
       const previewBtn = document.getElementById('preview-btn-' + index);
       if (previewBtn) {
         if (timeSec !== null) previewBtn.dataset.timeSec = timeSec;
@@ -1973,7 +2058,7 @@
         // Replace any previous click handler, then attach a clean one
         previewBtn.replaceWith(previewBtn.cloneNode(true));
         const freshBtn = document.getElementById('preview-btn-' + index);
-        freshBtn.classList.remove('d-none');
+        setVisible(freshBtn, true);
         freshBtn.addEventListener('click', () => {
           const origImg  = document.getElementById(`preview-img-${index}`);
           const dlBtn    = document.getElementById(`download-btn-${index}`);
@@ -1993,7 +2078,7 @@
         });
       }
     } else if (state === 'error') {
-      statusContainer.classList.remove('d-none');
+      setVisible(statusContainer, true);
       statusContainer.innerHTML = `<span class="badge bg-danger status-badge">Error</span>`;
     }
   }
@@ -2003,6 +2088,7 @@
       const img = new Image();
       img.src = URL.createObjectURL(file);
       img.onload = () => {
+        try {
         const isSidelong = rotation === 90 || rotation === 270;
         const rotatedW = isSidelong ? img.naturalHeight : img.naturalWidth;
         const rotatedH = isSidelong ? img.naturalWidth : img.naturalHeight;
@@ -2055,10 +2141,19 @@
         }
 
         resolve(fCtx.getImageData(0, 0, canvasW, canvasH));
+        } catch (err) {
+          // Fix 2: ensure the blob URL is revoked even if canvas operations throw
+          // (e.g. tainted canvas from a cross-origin source).
+          reject(err);
+        } finally {
         // Revoke after resolve so the browser has finished reading the image
         setTimeout(() => URL.revokeObjectURL(img.src), 0);
+        }
       };
-      img.onerror = (e) => reject(new Error('Image load failed: ' + (e?.message || 'unknown')));
+      img.onerror = (e) => {
+        URL.revokeObjectURL(img.src);
+        reject(new Error('Image load failed: ' + (e?.message || 'unknown')));
+      };
     });
   }
 
@@ -2069,6 +2164,17 @@
   });
 
   // ── Guess Game Score ─────────────────────────────────────────────────────────
+
+  // Single source of truth for whether the nav bar should be visible based on
+  // guess game state. Called on load and whenever the score or toggle changes.
+  function syncGuessGameNavBar() {
+    const ggOn    = (localStorage.getItem('img_guessGame') ?? 'false') !== 'false';
+    const ggTotal = parseInt(localStorage.getItem('img_ggTotal') || '0', 10);
+    if (ggOn && ggTotal > 0) {
+      setVisible(document.getElementById('navStatsTracker'), true);
+    }
+  }
+
   function renderGuessScore() {
     const correct = parseInt(localStorage.getItem('img_ggCorrect') || '0', 10);
     const total   = parseInt(localStorage.getItem('img_ggTotal')   || '0', 10);
@@ -2082,6 +2188,7 @@
     const show = isGuessOn && total > 0;
     scoreContainer.style.display = show ? '' : 'none';
     scoreDivider.style.display   = show ? '' : 'none';
+    syncGuessGameNavBar();
   }
 
   window.recordGuessResult = function(correct) {
@@ -2093,6 +2200,7 @@
   };
 
   window.renderGuessScore = renderGuessScore;
+  window.syncGuessGameNavBar = syncGuessGameNavBar;
 
   // Show score if guess game is on and there's history
   renderGuessScore();
@@ -2181,13 +2289,23 @@
     let ggOrigIsLeft = true;   // true = original is in the LEFT panel
     let ggVoted      = false;
 
+    // Fix 7: cache blob sizes so repeated modal opens on the same image don't
+    // accumulate unreleased Blob objects from redundant fetch() calls.
+    // Keys are blob URLs; values are the resolved Blob (or null on error).
+    // The same blob URL always resolves to the same bytes, so caching is safe.
+    const _blobCache = new Map();
     function getBlob(src, cb) {
-      fetch(src).then(r => r.blob()).then(b => cb(b)).catch(() => cb(null));
+      if (_blobCache.has(src)) { cb(_blobCache.get(src)); return; }
+      fetch(src).then(r => r.blob()).then(b => { _blobCache.set(src, b); cb(b); }).catch(() => { _blobCache.set(src, null); cb(null); });
     }
+    // Allow the module script to evict entries when it revokes blob URLs,
+    // so the cache never holds references to freed object URLs.
+    window.evictBlobCache = function(url) { _blobCache.delete(url); };
 
     // Reuse shared helpers exposed by the module script
     function fmtBytes(n) { return n == null ? '' : window.formatBytes(n); }
     function fmtBadge(nameOrMime) { return nameOrMime ? window.formatBadgeHtml(nameOrMime) : ''; }
+    function fmtRes(w, h) { return (w && h) ? window.fmtResolution(w, h) : ''; }
 
     function isGuessGame() {
       return !!(document.getElementById('guessGameToggle') && document.getElementById('guessGameToggle').checked);
@@ -2211,7 +2329,7 @@
       // Hide meta lines, show vote row
       origLine.style.display = 'none';
       convLine.style.display = 'none';
-      ggMetaRow.classList.remove('d-none');
+      window.setVisible(ggMetaRow, true);
 
       // Clone buttons to wipe old listeners, reset appearance
       const oldL = document.getElementById('ggVoteLeft');
@@ -2251,6 +2369,13 @@
 
       clearInterval(window._ggCountdownInterval);
       window._ggCountdownInterval = setInterval(function() {
+        // Fix 6: guard against the interval firing in the gap between
+        // closeModal calling clearInterval and the JS engine actually
+        // stopping it — if the modal is already closed, bail out silently.
+        if (!modal.classList.contains('active')) {
+          clearInterval(window._ggCountdownInterval);
+          return;
+        }
         ggSecsLeft--;
         updateRing(ggSecsLeft);
         if (ggSecsLeft <= 0) {
@@ -2304,7 +2429,7 @@
       }
 
       function switchToNormalMode() {
-        ggMetaRow.classList.add('d-none');
+        window.setVisible(ggMetaRow, false);
         origLine.style.display = '';
         convLine.style.display = '';
         origLine.innerHTML = ggOrigIsLeft ? _origInfoHtml : _convInfoHtml;
@@ -2327,7 +2452,7 @@
             window.recordGuessResult(false);
           }
           // Ensure the nav bar is visible after first guess
-          document.getElementById('navStatsTracker').classList.remove('d-none');
+          window.syncGuessGameNavBar();
         }
       }
 
@@ -2350,16 +2475,15 @@
       // Build conv info string — read dimensions from whichever panel holds convSrc
       const convPanelImg = ggOrigIsLeft ? convImg : origImg;
       function buildConvInfo() {
-        const w = convPanelImg.naturalWidth, h = convPanelImg.naturalHeight;
-        const res = (w && h) ? `${w}x${h} px (${(w/h).toFixed(2)})` : '';
+        const res = fmtRes(convPanelImg.naturalWidth, convPanelImg.naturalHeight);
         getBlob(convSrc, function(b) {
           const size = b ? fmtBytes(b.size) : '';
           const timeBadge = timeSec != null
-            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
+            ? `<span class="stat-badge" style="background:#0d6efd;">${timeSec}s</span>`
             : '';
           const wColor = isBigger ? '#dc3545' : '#198754';
           const weightBadge = weightText
-            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
+            ? `<span class="stat-badge" style="background:${wColor};">${weightText}</span>`
             : '';
           _convInfoHtml =
             '<span class="preview-label converted">Converted</span> '
@@ -2391,7 +2515,7 @@
       }
 
       // ── Normal (non-guess) mode ──
-      ggMetaRow.classList.add('d-none');
+      window.setVisible(ggMetaRow, false);
       origLine.style.display = '';
       convLine.style.display = '';
       origImg.src = origSrc;
@@ -2410,17 +2534,16 @@
           + (size ? ' - ' + size : '');
       });
 
-      convImg.onload = function () {
-        const w = convImg.naturalWidth, h = convImg.naturalHeight;
-        const res = (w && h) ? `${w}×${h} px (${(w/h).toFixed(2)})` : '';
+      function onConvImgReady() {
+        const res = fmtRes(convImg.naturalWidth, convImg.naturalHeight);
         getBlob(convSrc, function(b) {
           const size = b ? fmtBytes(b.size) : '';
           const timeBadge = timeSec != null
-            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:#0d6efd;color:#fff;vertical-align:middle;">${timeSec}s</span>`
+            ? `<span class="stat-badge" style="background:#0d6efd;">${timeSec}s</span>`
             : '';
           const wColor = isBigger ? '#dc3545' : '#198754';
           const weightBadge = weightText
-            ? `<span style="display:inline-block;font-size:0.8rem;font-weight:700;padding:4px;border-radius:3px;background:${wColor};color:#fff;vertical-align:middle;">${weightText}</span>`
+            ? `<span class="stat-badge" style="background:${wColor};">${weightText}</span>`
             : '';
           convLine.innerHTML =
             '<span class="preview-label converted">Converted</span> '
@@ -2431,7 +2554,15 @@
             + (timeBadge  ? ' - ' + timeBadge  : '')
             + (weightBadge ? ' - ' + weightBadge : '');
         });
-      };
+      }
+      // Use a one-shot listener so re-opening the modal doesn't stack handlers.
+      // If the image was already cached and decoded (complete + naturalWidth set),
+      // the 'load' event will never fire — call the handler immediately instead.
+      if (convImg.complete && convImg.naturalWidth) {
+        onConvImgReady();
+      } else {
+        convImg.addEventListener('load', onConvImgReady, { once: true });
+      }
     };
 
     function closeModal() {
@@ -2443,7 +2574,7 @@
       convLine.innerHTML = '';
       origLine.style.display = '';
       convLine.style.display = '';
-      ggMetaRow.classList.add('d-none');
+      window.setVisible(ggMetaRow, false);
       document.body.style.overflow = '';
       pzReset();
     }
